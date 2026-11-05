@@ -1,11 +1,26 @@
 import { existsSync, readFileSync } from "node:fs";
 import { exists, mkdir, rename, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
-// Written by the installer: { "wowDir": "<path to _forever_>", "claudePath": "<claude binary>" }.
-export const CONFIG_FILE = resolve(import.meta.dir, "../config.json");
+// Where wai keeps its files. The compiled `wai` binary uses ~/.wai; running from a source checkout
+// uses the repo itself (bridge/ for state, addon/ for the addon), so development needs no install.
+// WAI_HOME overrides both (tests use it).
+export const COMPILED = /\$bunfs|~BUN/.test(import.meta.dir);
+const REPO = resolve(import.meta.dir, "../..");
+export const HOME = process.env.WAI_HOME ?? (COMPILED ? join(homedir(), ".wai") : join(REPO, "bridge"));
+export const ADDON_DIR = process.env.WAI_HOME || COMPILED ? join(HOME, "addon") : join(REPO, "addon");
+export const CONFIG_FILE = join(HOME, "config.json");
+export const STATE_FILE = join(HOME, COMPILED ? "state.json" : ".state.json");
+export const LOG_FILE = join(HOME, "bridge.log");
+export const PID_FILE = join(HOME, "bridge.pid");
+export const BIN_DIR = join(HOME, "bin");
+// Written by the install scripts for a "managed" binary that `wai update` may replace.
+export const INSTALL_RECORD = join(HOME, "install.json");
 
-export function readConfig(): { wowDir?: string; claudePath?: string } {
+export type Config = { wowDir?: string; claudePath?: string };
+
+export function readConfig(): Config {
   try {
     return JSON.parse(readFileSync(CONFIG_FILE, "utf8"));
   } catch {
@@ -13,10 +28,10 @@ export function readConfig(): { wowDir?: string; claudePath?: string } {
   }
 }
 
-const WOW_CANDIDATES =
+export const WOW_CANDIDATES =
   process.platform === "win32"
     ? ["C:\\Program Files (x86)\\World of Warcraft", "C:\\Program Files\\World of Warcraft", "C:\\World of Warcraft", "D:\\World of Warcraft", "D:\\Games\\World of Warcraft"]
-    : ["/Applications/World of Warcraft", `${process.env.HOME}/Applications/World of Warcraft`];
+    : ["/Applications/World of Warcraft", join(homedir(), "Applications", "World of Warcraft")];
 
 // WOW_DIR env, then config.json, then the usual install locations.
 export function findWowDir(): string | undefined {
@@ -30,13 +45,11 @@ export const WOW_DIR = findWowDir() ?? join(WOW_CANDIDATES[0]!, "_forever_");
 export const ACCOUNTS_DIR = join(WOW_DIR, "WTF", "Account");
 export const ADDONS_DIR = join(WOW_DIR, "Interface", "AddOns");
 export const SCREENSHOTS_DIR = join(WOW_DIR, "Screenshots");
-export const ADDON_DIR = resolve(import.meta.dir, "../../addon");
 export const DATA_FILE = join(ADDON_DIR, "Data.lua");
 export const GENERATED_FILE = join(ADDON_DIR, "Generated.lua");
 export const MODULES_FILE = join(ADDON_DIR, "ModuleDefs.lua"); // not "Modules.lua": macOS/Windows would clash with modules.lua
 // UI modules Claude writes (ui/<name>.lua); the bridge hot-loads them through module slots.
 export const MODULES_DIR = join(ADDON_DIR, "ui");
-export const STATE_FILE = resolve(import.meta.dir, "../.state.json");
 
 // Load-on-demand addons the bridge writes into; the addon loads them live. Keep in sync with wai.lua.
 export const SLOT_COUNT = 500;

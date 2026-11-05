@@ -80,7 +80,7 @@ _G.InCombatLockdown = function() return false end
 _G.ReloadUI = function() print("ReloadUI called") end
 local shotBytes
 _G.Screenshot = function() shotBytes = true end
-_G.C_Timer = { After = function(_, fn) table.insert(timers, fn) end, NewTicker = function(_, fn) local t = new("Ticker"); t.fn = fn; _G.__ticker = t; return t end }
+_G.C_Timer = { After = function(delay, fn) table.insert(timers, { at = now + (delay or 0), fn = fn }) end, NewTicker = function(_, fn) local t = new("Ticker"); t.fn = fn; _G.__ticker = t; return t end }
 _G.UnitName = function(u) return u == "player" and "Backshot" or "Gnarlpine Ambusher" end
 _G.GetRealmName = function() return "Forever" end
 _G.UnitLevel = function() return 12 end
@@ -142,7 +142,9 @@ local function tick(dt, n)
     now = now + dt
     for f, fn in pairs(updaters) do if f.scripts.OnUpdate == fn then fn(f, dt) end end
     local pending = timers; timers = {}
-    for _, fn in ipairs(pending) do fn() end
+    for _, t in ipairs(pending) do
+      if t.at <= now then t.fn() else timers[#timers + 1] = t end
+    end
   end
 end
 local function texts(pattern)
@@ -393,6 +395,24 @@ kind, text = lastPayload()
 assert(kind == 4 and text:find("^video:subway"), "requested a landscape video")
 ns.commands.run("/fun"); assert(not WaiFunMenu:IsShown(), "/fun toggles it closed")
 print("fun menu ok")
+
+-- Updates: a slot announces a newer release; the banner offers Update; /update sends kind 5 and
+-- status lines from the bridge show up as note cards.
+slotData.default = { who = "Backshot-Forever", beat = 60, update = { version = "0.2.0" }, chats = { main = { ackSeq = WaiDB.seq, busy = false, messages = {} } } }
+ns.core.sync(); fire("SCREENSHOT_SUCCEEDED"); fire("SCREENSHOT_SUCCEEDED"); now = now + 2; __ticker.fn(); tick(0.01)
+assert(#texts("wai 0.2.0 is available.") == 1, "update banner")
+_G.Screenshot = function() end
+ns.commands.run("/update")
+local kindU = lastPayload()
+assert(kindU == 5, "update request sent, kind " .. tostring(kindU))
+fire("SCREENSHOT_SUCCEEDED")
+slotData.default = { who = "Backshot-Forever", beat = 61, chats = { main = { ackSeq = WaiDB.seq, busy = false, messages = {
+  { id = 30, role = "status", text = "Downloading wai 0.2.0…", done = true, at = 30 },
+  { id = 31, role = "status", text = "Updated to wai 0.2.0. Restart WoW to load the new addon.", done = true, at = 31 },
+} } } }
+now = now + 2; __ticker.fn(); tick(0.01)
+assert(#texts("Restart WoW to load the new addon") == 1 and not ns.core.view().update, "status lines shown, update notice cleared")
+print("update ok")
 
 -- Suggestions while typing.
 subjectInput:SetText("/re")

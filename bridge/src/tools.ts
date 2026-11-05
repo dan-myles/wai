@@ -1,31 +1,51 @@
-// External tools for video, resolved portably: ffmpeg ships via the ffmpeg-static package,
-// yt-dlp is our own copy in bridge/bin (system copies are often too old for YouTube).
-import { chmod, exists, mkdir, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
-import ffmpegStatic from "ffmpeg-static";
+// External tools for video, downloaded on first use into wai's bin folder: our own yt-dlp (system
+// copies are often too old for YouTube) and a static ffmpeg build. Works on macOS and Windows.
+import { chmod, exists, mkdir, rename, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { gunzipSync } from "node:zlib";
+import { BIN_DIR } from "./files";
 
-const BIN_DIR = resolve(import.meta.dir, "../bin");
-const YT_DLP_FILE = join(BIN_DIR, process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp");
+const EXE = process.platform === "win32" ? ".exe" : "";
+const YT_DLP = join(BIN_DIR, `yt-dlp${EXE}`);
+const FFMPEG = join(BIN_DIR, `ffmpeg${EXE}`);
 const YT_DLP_ASSET = process.platform === "win32" ? "yt-dlp.exe" : process.platform === "darwin" ? "yt-dlp_macos" : "yt-dlp";
+// Static builds published alongside the ffmpeg-static npm package.
+const FFMPEG_URL = `https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/ffmpeg-${process.platform}-${process.arch}.gz`;
 
-export function ffmpegPath(): string {
-  return (ffmpegStatic as unknown as string | null) ?? Bun.which("ffmpeg") ?? "ffmpeg";
+async function download(url: string, to: string, gunzip = false) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`download failed (${res.status}): ${url}`);
+  let bytes = new Uint8Array(await res.arrayBuffer());
+  if (gunzip) bytes = gunzipSync(bytes);
+  await mkdir(BIN_DIR, { recursive: true });
+  await writeFile(`${to}.tmp`, bytes);
+  await chmod(`${to}.tmp`, 0o755);
+  await rename(`${to}.tmp`, to);
 }
 
 export async function ytDlpPath(): Promise<string> {
-  if (await exists(YT_DLP_FILE)) return YT_DLP_FILE;
-  return Bun.which("yt-dlp") ?? YT_DLP_FILE;
+  await ensureYtDlp();
+  return YT_DLP;
 }
 
-// Downloads the standalone yt-dlp binary for this platform, or updates the one we have.
-export async function ensureYtDlp() {
-  if (await exists(YT_DLP_FILE)) {
-    Bun.spawnSync([YT_DLP_FILE, "-U"], { stdout: "ignore", stderr: "ignore" });
+export async function ffmpegPath(): Promise<string> {
+  await ensureFfmpeg();
+  return FFMPEG;
+}
+
+export async function ensureYtDlp(update = false) {
+  if (await exists(YT_DLP)) {
+    if (update) Bun.spawnSync([YT_DLP, "-U"], { stdout: "ignore", stderr: "ignore" });
     return;
   }
-  await mkdir(BIN_DIR, { recursive: true });
-  const res = await fetch(`https://github.com/yt-dlp/yt-dlp/releases/latest/download/${YT_DLP_ASSET}`);
-  if (!res.ok) throw new Error(`yt-dlp download failed: ${res.status}`);
-  await writeFile(YT_DLP_FILE, new Uint8Array(await res.arrayBuffer()));
-  await chmod(YT_DLP_FILE, 0o755);
+  await download(`https://github.com/yt-dlp/yt-dlp/releases/latest/download/${YT_DLP_ASSET}`, YT_DLP);
+}
+
+export async function ensureFfmpeg() {
+  if (await exists(FFMPEG)) return;
+  await download(FFMPEG_URL, FFMPEG, true);
+}
+
+export async function toolsPresent() {
+  return { ytDlp: await exists(YT_DLP), ffmpeg: await exists(FFMPEG) };
 }

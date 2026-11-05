@@ -18,7 +18,7 @@ local GRID_COLS, GRID_ROWS, GRID_MARGIN = 128, 64, 2 -- keep in sync with bridge
 local CAPACITY = GRID_COLS * GRID_ROWS * 3 / 8 -- 3 bits per block, one per colour channel
 local HEADER_BYTES = 11
 local VERSION = 2
-local KINDS = { chat = 1, reset = 2, ping = 3, video = 4 }
+local KINDS = { chat = 1, reset = 2, ping = 3, video = 4, update = 5 }
 local CHARS_PER_SEC = 90
 
 local LoadAddOn = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
@@ -28,6 +28,7 @@ local chats = {} -- tab id -> { messages, byId, ackSeq, busy, activity, unread }
 local notice
 local nextSlot, poll, pollTicker = 1, nil, nil
 local lastBeat, lastBeatAt = nil, 0
+local updateAvailable -- a newer wai release the bridge found
 local grid, gridBlocks, shots, shooting, savedFormat = nil, nil, {}, nil, nil
 local localId = 0
 local typer = CreateFrame("Frame")
@@ -227,6 +228,7 @@ end
 local function mergeSlot(slot)
     if type(slot) ~= "table" or slot.who ~= who then return end
     if slot.beat ~= lastBeat then lastBeat, lastBeatAt = slot.beat, GetTime() end
+    updateAvailable = slot.update and slot.update.version
     for tab, snap in pairs(slot.chats or {}) do merge(tab, snap, true) end
     ns.modules.sync(slot.modules)
     ns.video.sync(slot.video)
@@ -382,6 +384,17 @@ function core.requestVideo(kind, query)
     shootNext()
 end
 
+-- In-game /update: the bridge updates wai and reports progress as status lines in this chat.
+function core.requestUpdate()
+    updateAvailable = nil
+    local c = chatFor(activeTab())
+    c.busy = true -- keep polling until the bridge reports back
+    shots[#shots + 1] = encode({ kind = "update" })
+    notice = nil
+    shootNext()
+    changed()
+end
+
 -- Public API ------------------------------------------------------------------------------------
 
 local function enqueue(item)
@@ -504,6 +517,7 @@ function core.view()
         notice = notice,
         full = nextSlot > SLOT_COUNT,
         modulesNeedReload = ns.modules.needsReload(),
+        update = updateAvailable,
         tabs = core.tabs(),
     }
 end
@@ -523,6 +537,7 @@ events:SetScript("OnEvent", guard(function()
     ns.ui.build()
     local data = WaiData or {}
     lastBeat = data.beat
+    updateAvailable = data.update and data.update.version
     local prefix = who .. "#"
     for key, snap in pairs(data.chats or {}) do
         if key:sub(1, #prefix) == prefix then merge(key:sub(#prefix + 1), snap, false) end

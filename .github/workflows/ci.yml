@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: bridge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - name: Install LuaJIT (addon tests)
+        run: sudo apt-get update && sudo apt-get install -y luajit
+      - run: bun install --frozen-lockfile
+      - name: Build (generates the embedded addon)
+        run: bun scripts/build.ts bun-linux-x64
+      - name: Typecheck
+        run: bunx -p typescript tsc --noEmit -p .
+      - name: Bridge tests
+        run: bun test
+      - name: Addon tests (headless WoW stub)
+        run: bun run test:addon
+      - name: Smoke-test the binary
+        run: ./dist/wai-linux-x64 version

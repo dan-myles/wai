@@ -2,16 +2,6 @@
 
 Ideas we're not working on yet. Each needs a feasibility check first.
 
-## `wai` CLI with self-update (modelled on loadout)
-Replace the install scripts and manual updates with one `wai` binary, the way `~/Developer/personal/loadout` ships.
-- **Build:** `bun build --compile` turns the bridge into a standalone binary per platform (macOS arm64/x64, Windows x64/arm64), so players don't need Bun. The addon ships as a release asset the CLI extracts.
-- **Install:** `curl -fsSL …/install.sh | sh` / `irm …/install.ps1 | iex` picks the right binary, checks its SHA-256, puts it in `~/.local/bin`, and writes an install record (a "managed" install). Pin with `--version`.
-- **Commands:** `wai install` (find WoW, link the addon, create slots, register auto-start), `wai run` (the bridge), `wai update` / `upgrade` (self-update binary and addon from the latest stable release, after a SHA-256 check, then restart the bridge and say "restart WoW" if addon files changed), `wai status` / `doctor` (WoW path, Claude CLI signed in, bridge running, slots present), `wai logs`, `wai uninstall`.
-- **In game:** a `/update` command in wai (beside `/help`, `/new`, `/reload`, `/fun`). It sends an "update" request through the screenshot channel; the bridge runs `wai update`, streams progress back ("Downloading 0.2.0…", "Updated, restarting the bridge"), and ends with "Restart WoW to load the new addon" when addon files changed. The bridge can also mention when an update is available. Everything else stays in the terminal.
-- **Tools on demand:** ffmpeg and yt-dlp are downloaded into `~/.wai/bin` on first video instead of being bundled.
-- **Release pipeline:** a GitHub Actions workflow builds and checksums each binary and publishes the release, like loadout's `scripts/release`.
-- Open question: the repo is private, so release downloads need auth (or a public releases repo).
-
 ## Monorepo structure (syncfast template)
 Restructure this repo after `~/Developer/personal/syncfast`, which becomes the monorepo template for wai's addon, bridge and CLI.
 - Check syncfast's layout, tooling and conventions first, then map `addon/`, `bridge/`, the installers and the docs onto it.
@@ -36,6 +26,7 @@ Tabs are named once, from the first message ("best leveling route fo"). Instead,
 - Never overwrite a title the player renamed by hand (`auto` flag already tracks that). Animate the change subtly in the tab strip.
 
 ## Done
+- **`wai` CLI with self-update (v0.1.0):** one binary per platform built with `bun build --compile`, release installers with SHA-256 checks, `wai install/run/update/status/logs/uninstall`, in-game `/update` with progress and an update-available banner, video tools on demand, and a GitHub Actions release pipeline.
 - **Hot-swappable custom UI slots:** Built as UI modules: Claude writes `ui/<name>.lua`, and the bridge hot-loads each change through 40 `wai_modNN` slots. See bridge/SKILL.md.
 - **Parallel chats (tabs):** Built: a tab strip with up to 8 chats per character, each its own Claude session. Double-click to rename, right-click to close; tabs are auto-named and show unread and busy dots.
 - **Smooth, durable streaming:** Built: a live activity line ("Searching the web for …"), a bridge heartbeat, a slower slot schedule for long tasks, a silent re-sync and then a banner when the bridge goes quiet, a screenshot watchdog, a 30-minute task limit, and recovery for replies cut off by a bridge restart.

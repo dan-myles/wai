@@ -1,89 +1,82 @@
-#!/usr/bin/env bash
-# wai installer for macOS. Installs Bun and the Claude CLI if missing, links the addon into
-# WoW: Forever, creates the slot addons and starts the bridge at login (launchd).
-#   ./install.sh                     auto-detect WoW
-#   ./install.sh "/path/to/_forever_"
-#   ./install.sh --uninstall         stop the bridge and remove auto-start
-set -euo pipefail
+#!/bin/sh
+# Installs wai from GitHub Releases (macOS, Linux): picks the binary for this OS and CPU, checks its
+# SHA-256, puts it in ~/.local/bin, records the install so `wai update` can replace it later, then
+# runs `wai install` (links the addon into WoW: Forever and starts the bridge at login).
+#
+#   curl -fsSL https://raw.githubusercontent.com/dan-myles/wai/main/install.sh | sh
+#   sh install.sh --version v0.1.0 --wow "/Applications/World of Warcraft/_forever_"
+#
+# The repo is private: with the GitHub CLI signed in (`gh auth login`) downloads just work.
+set -eu
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
-BRIDGE="$ROOT/bridge"
-LABEL="com.wai.bridge"
-PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+REPO="${WAI_REPO:-dan-myles/wai}"
+VERSION=""
+WOW=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --version) VERSION="$2"; shift 2 ;;
+    --wow) WOW="$2"; shift 2 ;;
+    *) echo "wai: unknown option $1" >&2; exit 1 ;;
+  esac
+done
 
-say() { printf "\033[1;33mwai\033[0m %s\n" "$*"; }
-fail() { printf "\033[1;31mwai\033[0m %s\n" "$*" >&2; exit 1; }
+say() { printf '\033[1;33mwai\033[0m %s\n' "$*"; }
+fail() { printf '\033[1;31mwai\033[0m %s\n' "$*" >&2; exit 1; }
 
-if [[ "${1:-}" == "--uninstall" ]]; then
-  launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-  rm -f "$PLIST"
-  say "Bridge stopped and removed from login items. Delete Interface/AddOns/wai* in WoW to remove the addon."
-  exit 0
+case "$(uname -s)" in
+  Darwin) os=darwin ;;
+  Linux) os=linux ;;
+  *) fail "unsupported OS $(uname -s); on Windows use install.ps1" ;;
+esac
+case "$(uname -m)" in
+  arm64 | aarch64) arch=arm64 ;;
+  x86_64 | amd64) arch=x64 ;;
+  *) fail "unsupported CPU $(uname -m)" ;;
+esac
+[ "$os" = linux ] && arch=x64
+asset="wai-$os-$arch"
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+
+say "Downloading $asset ${VERSION:-(latest)}…"
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  if [ -n "$VERSION" ]; then
+    gh release download "$VERSION" --repo "$REPO" --pattern "$asset" --pattern SHA256SUMS --dir "$tmp"
+  else
+    gh release download --repo "$REPO" --pattern "$asset" --pattern SHA256SUMS --dir "$tmp"
+  fi
+else
+  if [ -n "$VERSION" ]; then base="https://github.com/$REPO/releases/download/$VERSION"; else base="https://github.com/$REPO/releases/latest/download"; fi
+  curl -fsSL -o "$tmp/$asset" "$base/$asset" || fail "download failed. The repo is private: install the GitHub CLI and run 'gh auth login' first."
+  curl -fsSL -o "$tmp/SHA256SUMS" "$base/SHA256SUMS" || fail "couldn't download SHA256SUMS"
 fi
 
-# 1. Bun
-if ! command -v bun >/dev/null; then
-  say "Installing Bun…"
-  curl -fsSL https://bun.sh/install | bash
-  export PATH="$HOME/.bun/bin:$PATH"
-fi
+expected="$(grep " $asset\$" "$tmp/SHA256SUMS" | cut -d' ' -f1)"
+if command -v shasum >/dev/null 2>&1; then actual="$(shasum -a 256 "$tmp/$asset" | cut -d' ' -f1)"; else actual="$(sha256sum "$tmp/$asset" | cut -d' ' -f1)"; fi
+[ -n "$expected" ] && [ "$expected" = "$actual" ] || fail "checksum mismatch for $asset; nothing was installed"
 
-# 2. Claude CLI
-if ! command -v claude >/dev/null; then
-  say "Installing the Claude CLI…"
-  curl -fsSL https://claude.ai/install.sh | bash
-  export PATH="$HOME/.local/bin:$PATH"
-fi
-command -v claude >/dev/null || fail "Claude CLI not found after install. Open a new terminal and rerun."
+bindir="$HOME/.local/bin"
+bin="$bindir/wai"
+mkdir -p "$bindir" "$HOME/.wai"
+chmod +x "$tmp/$asset"
+# macOS refuses unsigned arm64 binaries; an ad-hoc signature is enough.
+[ "$os" = darwin ] && codesign --force --sign - "$tmp/$asset" >/dev/null 2>&1 || true
+mv -f "$tmp/$asset" "$bin"
 
-# 3. WoW: Forever
-WOW_DIR="${1:-}"
-if [[ -z "$WOW_DIR" ]]; then
-  for candidate in "/Applications/World of Warcraft/_forever_" "$HOME/Applications/World of Warcraft/_forever_"; do
-    [[ -d "$candidate" ]] && WOW_DIR="$candidate" && break
-  done
-fi
-[[ -n "$WOW_DIR" && -d "$WOW_DIR" ]] || fail "Couldn't find WoW: Forever. Run: ./install.sh \"/path/to/World of Warcraft/_forever_\""
-say "WoW: Forever at $WOW_DIR"
+version="$("$bin" version | cut -d' ' -f2)"
+printf '{\n  "managed": true,\n  "version": "%s",\n  "path": "%s",\n  "installedAt": "%s"\n}\n' \
+  "$version" "$bin" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$HOME/.wai/install.json"
+say "Installed wai $version to $bin"
 
-cat > "$BRIDGE/config.json" <<EOF
-{
-  "wowDir": "$WOW_DIR",
-  "claudePath": "$(command -v claude)"
-}
-EOF
+case ":$PATH:" in
+  *":$bindir:"*) ;;
+  *)
+    profile="$HOME/.profile"
+    case "${SHELL:-}" in */zsh) profile="$HOME/.zprofile" ;; */bash) profile="$HOME/.bashrc" ;; esac
+    printf '\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "$profile"
+    say "Added ~/.local/bin to PATH in $profile (open a new terminal to use 'wai')."
+    ;;
+esac
 
-# 4. Bridge + addon
-cd "$BRIDGE"
-bun install
-bun run setup
-
-# 5. Start the bridge now and at every login.
-mkdir -p "$(dirname "$PLIST")"
-cat > "$PLIST" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>$LABEL</string>
-  <key>ProgramArguments</key>
-  <array><string>$(command -v bun)</string><string>src/index.ts</string></array>
-  <key>WorkingDirectory</key><string>$BRIDGE</string>
-  <key>EnvironmentVariables</key>
-  <dict><key>PATH</key><string>$PATH</string></dict>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
-  <key>StandardOutPath</key><string>$BRIDGE/bridge.log</string>
-  <key>StandardErrorPath</key><string>$BRIDGE/bridge.log</string>
-</dict>
-</plist>
-EOF
-launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-pkill -f "bun src/index.ts" 2>/dev/null || true
-launchctl bootstrap "gui/$(id -u)" "$PLIST"
-say "Bridge running (log: $BRIDGE/bridge.log) and set to start at login."
-
-if ! claude -p "reply with ok" --output-format json >/dev/null 2>&1; then
-  say "Sign in to Claude once: run 'claude' in a terminal and follow the prompts."
-fi
-say "Done. Restart WoW, then type /wai in game."
+if [ -n "$WOW" ]; then "$bin" install --wow "$WOW"; else "$bin" install; fi

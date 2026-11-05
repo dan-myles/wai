@@ -12,3 +12,6 @@ addon/ui/
 addon/ModuleDefs.lua
 bridge/config.json
 bridge/bin/
+bridge/src/embedded-addon.ts
+bridge/dist/
+*.bun-build

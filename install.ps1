@@ -1,79 +1,70 @@
-# wai installer for Windows. Installs Bun and the Claude CLI if missing, links the addon into
-# WoW: Forever (directory junction, no admin needed), creates the slot addons and starts the
-# bridge at logon (Task Scheduler).
-#   powershell -ExecutionPolicy Bypass -File install.ps1
-#   powershell -ExecutionPolicy Bypass -File install.ps1 -WowDir "D:\Games\World of Warcraft\_forever_"
-#   powershell -ExecutionPolicy Bypass -File install.ps1 -Uninstall
-param([string]$WowDir = "", [switch]$Uninstall)
+# Installs wai from GitHub Releases (Windows): downloads wai-windows-x64.exe, checks its SHA-256,
+# puts it in %USERPROFILE%\.local\bin, records the install so `wai update` can replace it later,
+# then runs `wai install` (links the addon into WoW: Forever and starts the bridge at logon).
+#
+#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/dan-myles/wai/main/install.ps1)))
+#   powershell -ExecutionPolicy Bypass -File install.ps1 -Version v0.1.0 -WowDir "D:\Games\World of Warcraft\_forever_"
+#
+# The repo is private: with the GitHub CLI signed in (`gh auth login`) downloads just work.
+param([string]$Version = "", [string]$WowDir = "")
 $ErrorActionPreference = "Stop"
 
-$Root = $PSScriptRoot
-$Bridge = Join-Path $Root "bridge"
-$Task = "wai bridge"
+$Repo = if ($env:WAI_REPO) { $env:WAI_REPO } else { "dan-myles/wai" }
+# One Windows build; ARM64 Windows runs it under emulation.
+$Asset = "wai-windows-x64.exe"
 
 function Say($msg) { Write-Host "wai " -ForegroundColor Yellow -NoNewline; Write-Host $msg }
 function Fail($msg) { Write-Host "wai $msg" -ForegroundColor Red; exit 1 }
 
-if ($Uninstall) {
-    Unregister-ScheduledTask -TaskName $Task -Confirm:$false -ErrorAction SilentlyContinue
-    Get-CimInstance Win32_Process -Filter "Name = 'bun.exe'" | Where-Object { $_.CommandLine -like "*src/index.ts*" } |
-        ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
-    Say "Bridge stopped and removed from logon tasks. Delete Interface\AddOns\wai* in WoW to remove the addon."
-    exit 0
+$tmp = Join-Path $env:TEMP "wai-install-$(Get-Random)"
+New-Item -ItemType Directory -Force $tmp | Out-Null
+try {
+    Say "Downloading $Asset $(if ($Version) { $Version } else { '(latest)' })..."
+    $ghReady = $false
+    if (Get-Command gh -ErrorAction SilentlyContinue) {
+        & gh auth status *> $null
+        $ghReady = $LASTEXITCODE -eq 0
+    }
+    if ($ghReady) {
+        $ghArgs = @("release", "download")
+        if ($Version) { $ghArgs += $Version }
+        $ghArgs += @("--repo", $Repo, "--pattern", $Asset, "--pattern", "SHA256SUMS", "--dir", $tmp)
+        & gh @ghArgs
+        if ($LASTEXITCODE -ne 0) { Fail "gh release download failed" }
+    } else {
+        $base = if ($Version) { "https://github.com/$Repo/releases/download/$Version" } else { "https://github.com/$Repo/releases/latest/download" }
+        try {
+            Invoke-WebRequest "$base/$Asset" -OutFile (Join-Path $tmp $Asset) -UseBasicParsing
+            Invoke-WebRequest "$base/SHA256SUMS" -OutFile (Join-Path $tmp "SHA256SUMS") -UseBasicParsing
+        } catch {
+            Fail "download failed. The repo is private: install the GitHub CLI and run 'gh auth login' first."
+        }
+    }
+
+    $expected = (Get-Content (Join-Path $tmp "SHA256SUMS") | Where-Object { $_ -match " $([regex]::Escape($Asset))$" }) -split "\s+" | Select-Object -First 1
+    $actual = (Get-FileHash (Join-Path $tmp $Asset) -Algorithm SHA256).Hash.ToLower()
+    if (-not $expected -or $expected -ne $actual) { Fail "checksum mismatch for $Asset; nothing was installed" }
+
+    $binDir = Join-Path $env:USERPROFILE ".local\bin"
+    $bin = Join-Path $binDir "wai.exe"
+    New-Item -ItemType Directory -Force $binDir, (Join-Path $env:USERPROFILE ".wai") | Out-Null
+    # A running wai.exe (the bridge) can be renamed but not overwritten.
+    if (Test-Path $bin) { Move-Item -Force $bin "$bin.old" }
+    Move-Item -Force (Join-Path $tmp $Asset) $bin
+
+    $installed = ((& $bin version) -split " ")[1]
+    @{ managed = $true; version = $installed; path = $bin; installedAt = (Get-Date).ToUniversalTime().ToString("o") } |
+        ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $env:USERPROFILE ".wai\install.json")
+    Say "Installed wai $installed to $bin"
+
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    if (-not ($userPath -split ";" | Where-Object { $_ -eq $binDir })) {
+        [Environment]::SetEnvironmentVariable("Path", "$binDir;$userPath", "User")
+        $env:Path = "$binDir;$env:Path"
+        Say "Added $binDir to your PATH (open a new terminal to use 'wai')."
+    }
+
+    if ($WowDir) { & $bin install --wow $WowDir } else { & $bin install }
+} finally {
+    Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 }
-
-# 1. Bun
-if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
-    Say "Installing Bun..."
-    Invoke-RestMethod https://bun.sh/install.ps1 | Invoke-Expression
-    $env:Path = "$env:USERPROFILE\.bun\bin;$env:Path"
-}
-
-# 2. Claude CLI
-if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
-    Say "Installing the Claude CLI..."
-    Invoke-RestMethod https://claude.ai/install.ps1 | Invoke-Expression
-    $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
-}
-$Claude = (Get-Command claude -ErrorAction SilentlyContinue).Source
-if (-not $Claude) { Fail "Claude CLI not found after install. Open a new terminal and rerun." }
-$Bun = (Get-Command bun).Source
-
-# 3. WoW: Forever
-if (-not $WowDir) {
-    $candidates = @(
-        "${env:ProgramFiles(x86)}\World of Warcraft\_forever_",
-        "$env:ProgramFiles\World of Warcraft\_forever_",
-        "C:\World of Warcraft\_forever_",
-        "D:\World of Warcraft\_forever_",
-        "D:\Games\World of Warcraft\_forever_"
-    )
-    $WowDir = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-}
-if (-not $WowDir -or -not (Test-Path $WowDir)) {
-    Fail "Couldn't find WoW: Forever. Run: install.ps1 -WowDir ""C:\path\to\World of Warcraft\_forever_"""
-}
-Say "WoW: Forever at $WowDir"
-
-@{ wowDir = $WowDir; claudePath = $Claude } | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $Bridge "config.json")
-
-# 4. Bridge + addon
-Push-Location $Bridge
-& $Bun install
-& $Bun run setup
-Pop-Location
-
-# 5. Start the bridge now and at every logon (hidden window, output to bridge.log).
-$log = Join-Path $Bridge "bridge.log"
-$command = "Set-Location '$Bridge'; & '$Bun' src/index.ts *> '$log'"
-$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -Command `"$command`""
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0 -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
-Unregister-ScheduledTask -TaskName $Task -Confirm:$false -ErrorAction SilentlyContinue
-Register-ScheduledTask -TaskName $Task -Action $action -Trigger $trigger -Settings $settings | Out-Null
-Start-ScheduledTask -TaskName $Task
-Say "Bridge running (log: $log) and set to start at logon."
-
-& $Claude -p "reply with ok" --output-format json *> $null
-if ($LASTEXITCODE -ne 0) { Say "Sign in to Claude once: run 'claude' in a terminal and follow the prompts." }
-Say "Done. Restart WoW, then type /wai in game."

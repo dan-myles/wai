@@ -19,21 +19,29 @@ window ◀─ addon loads next slot addon each second ◀─ bridge writes wai_s
 
 ## Install
 
-Clone the repo, then run the installer. It installs Bun and the Claude CLI if missing, finds WoW: Forever, links the addon, creates the slot addons and starts the bridge at login.
+wai is one binary per platform (bridge, CLI and addon together). The installer picks yours, checks its SHA-256, installs it to `~/.local/bin` and runs `wai install`, which finds WoW: Forever, links the addon, creates the slot addons and starts the bridge at login.
 
 ```sh
-./install.sh                                   # macOS (launchd)
-./install.sh "/path/to/World of Warcraft/_forever_"
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/dan-myles/wai/main/install.sh | sh
 ```
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1          # Windows (Task Scheduler)
-powershell -ExecutionPolicy Bypass -File install.ps1 -WowDir "D:\Games\World of Warcraft\_forever_"
+# Windows
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/dan-myles/wai/main/install.ps1)))
 ```
 
-Then restart WoW (new addons load only on client start). If Claude isn't signed in yet, run `claude` once. `--uninstall` / `-Uninstall` removes the auto-start. Settings live in `bridge/config.json`.
+The repo is private, so sign in with the GitHub CLI first (`gh auth login`). The script then downloads through `gh`, and for the script itself use `gh api repos/dan-myles/wai/contents/install.sh -H "Accept: application/vnd.github.raw" | sh`. Options: `--version v0.1.0`, `--wow "<path to _forever_>"` (`-Version`, `-WowDir` on Windows). You also need the [Claude CLI](https://claude.ai/install), signed in once with `claude`. Then restart WoW.
 
-Manual run: `cd bridge && bun install && bun run setup && bun start`.
+| Command | |
+|---|---|
+| `wai install [--wow <path>]` | link the addon, create slots, start the bridge at login |
+| `wai update` | update to the latest release (also `/update` in game) |
+| `wai status` | check everything wai needs (`doctor`) |
+| `wai logs [-f]` | show or follow the bridge log |
+| `wai uninstall [--purge]` | remove wai from WoW and login items |
+
+**Development:** run from a source checkout with `cd bridge && bun install && bun run setup && bun start`, or `bun src/cli.ts <command>`. Tests: `bun test` and `bun run test:addon` (needs `luajit`). Releases: bump `bridge/package.json`, add a `CHANGELOG.md` section, push a `vX.Y.Z` tag, and GitHub Actions builds and publishes the binaries.
 
 ## In game
 

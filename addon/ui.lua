@@ -214,6 +214,8 @@ local function entries(view)
             if kind == "system" then
                 kind = m.text:find("^Error") and "error" or "system"
                 if kind == "system" then text = "New conversation" end
+            elseif kind == "status" then
+                kind = "note"
             elseif kind ~= "note" then
                 text = render(text)
             end
@@ -251,7 +253,9 @@ local function setBanner(view)
         tone = "warn", text = "This live session is full. Reload to keep chatting.", action = "Reload", run = ns.core.reload,
     } or view.modulesNeedReload and {
         tone = "info", text = "New UI from wai is ready. Reload to load it.", action = "Reload", run = ns.core.reload,
-    } or view.notice
+    } or view.notice or view.update and {
+        tone = "info", text = ("wai %s is available."):format(view.update), action = "Update", run = ns.core.requestUpdate,
+    }
     if not n then return banner:Hide() end
     local tone = TONES[n.tone] or TONES.info
     banner.bg:SetFill(tone[1])

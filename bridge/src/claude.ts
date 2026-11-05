@@ -1,12 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
-import { ADDON_DIR, readConfig } from "./files";
+import embeddedSkill from "../SKILL.md" with { type: "text" };
+import { ADDON_DIR, COMPILED, readConfig } from "./files";
 
 // Long tasks (building UI, research) can legitimately run for a while.
 const TIMEOUT_MS = 30 * 60_000;
 
-// The wai skill: what the agent knows and can do. Read on every call so edits apply immediately.
+// The wai skill: what the agent knows and can do. In a source checkout it's read on every call so
+// edits apply immediately; the compiled binary carries its own copy.
 const SKILL_FILE = resolve(import.meta.dir, "../SKILL.md");
+const skill = async () => (COMPILED ? embeddedSkill : await readFile(SKILL_FILE, "utf8").catch(() => embeddedSkill));
 // Services started at login (launchd, Task Scheduler) have a bare PATH, so the installer records it.
 const CLAUDE = process.env.CLAUDE_BIN ?? readConfig().claudePath ?? "claude";
 
@@ -59,7 +62,7 @@ async function run(prompt: string, sessionId: string | undefined, onUpdate: OnUp
     CLAUDE, "-p", prompt,
     "--output-format", "stream-json", "--verbose", "--include-partial-messages",
     "--permission-mode", "acceptEdits",
-    "--append-system-prompt", await readFile(SKILL_FILE, "utf8"),
+    "--append-system-prompt", await skill(),
     "--allowedTools", "WebSearch", "WebFetch",
   ];
   if (sessionId) args.push("--resume", sessionId);

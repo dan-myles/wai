@@ -48,7 +48,7 @@ export async function fetchVideo(query: string, orientation: Orientation): Promi
       // YouTube needs a JS runtime for its player; Bun is already here.
       "--js-runtimes", `bun:${process.execPath}`, "--remote-components", "ejs:github",
       "-f", "worst[height>=144][ext=mp4]/worst[ext=mp4]/worst",
-      "--ffmpeg-location", ffmpegPath(),
+      "--ffmpeg-location", await ffmpegPath(),
       "--download-sections", `*0-${MAX_SECONDS}`,
       "-o", join(dir, "source.%(ext)s"),
       "--print", "after_move:title", "--no-simulate",
@@ -59,7 +59,7 @@ export async function fetchVideo(query: string, orientation: Orientation): Promi
     const { w, h } = SIZES[orientation];
     // Fill the frame (crop, don't letterbox) so portrait clips feel like TikTok.
     const raw = await run([
-      ffmpegPath(), "-loglevel", "error", "-i", join(dir, source), "-t", String(MAX_SECONDS),
+      await ffmpegPath(), "-loglevel", "error", "-i", join(dir, source), "-t", String(MAX_SECONDS),
       "-vf", `fps=${FPS},scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},eq=saturation=1.25`,
       "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
     ]);

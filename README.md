@@ -41,20 +41,20 @@ The repo is private, so sign in with the GitHub CLI first (`gh auth login`). The
 | `wai logs [-f]` | show or follow the bridge log |
 | `wai uninstall [--purge]` | remove wai from WoW and login items |
 
-**Development:** run from a source checkout with `cd bridge && bun install && bun run setup && bun start`, or `bun src/cli.ts <command>`. Tests: `bun test` and `bun run test:addon` (needs `luajit`). Releases: bump `bridge/package.json`, add a `CHANGELOG.md` section, push a `vX.Y.Z` tag, and GitHub Actions builds and publishes the binaries.
+**Development:** the repo is a Bun + Turborepo monorepo (`apps/cli`, `apps/addon`, `tooling/*`) driven by [Task](https://taskfile.dev): `task install`, `task setup` (link this checkout's addon into WoW), `task dev` (run the bridge from source), `task ci` (format, lint, typecheck, tests; the addon tests need `luajit`), `task build`. See [AGENTS.md](AGENTS.md). Releases: bump `apps/cli/package.json` and `apps/addon/wai.toc`, add a `CHANGELOG.md` section, `task release:check VERSION=x.y.z`, then push a `vx.y.z` tag.
 
 ## In game
 
 - `/wai` toggles the window (or bind a key: Key Bindings → AddOns). Commands: `/help`, `/new`, `/reload`, and `/fun` (a menu of toggles and test buttons for TikTok mode, killstreaks and video). Everything else, just ask.
 - **Ask from anywhere:** Alt-click an item, a quest in your log, your target's portrait or a player's name in chat. Quest dialogs have an Ask wai button.
 - **Rich replies:** item, spell and quest links with tooltips, and blue pins that set wai's waypoint arrow.
-- **Memory and actions:** each character has its own conversation. Claude saves and forgets notes and sets the waypoint arrow itself, following [bridge/SKILL.md](bridge/SKILL.md), which is injected into every prompt.
+- **Memory and actions:** each character has its own conversation. Claude saves and forgets notes and sets the waypoint arrow itself, following [apps/cli/SKILL.md](apps/cli/SKILL.md), which is injected into every prompt.
 - **Context:** character, target, zone, quest log, recent chat, killstreak, and recent fights plus your last death from Blizzard's damage meter.
 - **Tabs:** up to 8 parallel chats per character, each its own Claude session, with a live activity line while Claude works.
 - **Live UI:** ask for UI and Claude writes a module (`addon/ui/<name>.lua`) that appears in game within seconds, no reload.
 - **Killstreaks:** 11 kills without dying calls in the Chopper Gunner, and 25 drops a Nuke. Cosmetic only.
 - **Video:** "show me a guide for…" plays a pixel-art clip (yt-dlp + ffmpeg, up to 2 minutes, no sound). "Turn on TikTok mode" docks a looping vertical clip with captions and stream chat.
 
-wai doesn't depend on any other addon. Design rules live in [DESIGN.md](DESIGN.md); deferred ideas in [PARKING_LOT.md](PARKING_LOT.md).
+wai doesn't depend on any other addon. Design rules live in [docs/DESIGN.md](docs/DESIGN.md); deferred ideas in [PARKING_LOT.md](PARKING_LOT.md).
 
 Debugging: Lua errors print as `wai error:` in chat, and are also saved to `WTF/SavedVariables/Blizzard_Console.lua` on reload.

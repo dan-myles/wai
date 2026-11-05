@@ -10,30 +10,18 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: bridge
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.11
-      - name: Install LuaJIT (addon tests)
-        run: sudo apt-get update && sudo apt-get install -y luajit
-      - run: bun install --frozen-lockfile
-      - name: Check the tag matches the version
-        run: test "v$(bun -e 'console.log(require("./package.json").version)')" = "$GITHUB_REF_NAME"
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
       - name: Build every platform
-        run: bun scripts/build.ts
-      - name: Typecheck and test
-        run: |
-          bunx -p typescript tsc --noEmit -p .
-          bun test
-          bun run test:addon
-          ./dist/wai-linux-x64 version
+        run: task build
+      - name: Check the release (version, changelog, all checks)
+        run: task release:check VERSION="${GITHUB_REF_NAME#v}"
+      - name: Smoke-test the binary
+        run: apps/cli/dist/wai-linux-x64 version
       - name: Release notes from CHANGELOG.md
-        run: awk -v v="${GITHUB_REF_NAME#v}" '/^## /{p = index($0, "## " v " ") == 1 || $0 == "## " v} p' ../CHANGELOG.md > notes.md
+        run: awk -v v="${GITHUB_REF_NAME#v}" '/^## /{p = index($0, "## " v " ") == 1 || $0 == "## " v} p' CHANGELOG.md > notes.md
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --title "wai ${GITHUB_REF_NAME#v}" --notes-file notes.md
+        run: gh release create "$GITHUB_REF_NAME" apps/cli/dist/* --title "wai ${GITHUB_REF_NAME#v}" --notes-file notes.md

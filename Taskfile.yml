@@ -1,0 +1,75 @@
+version: "3"
+
+################################################################################
+# Task is the only entry point for repository commands.
+#
+# Turborepo runs every workspace's checks behind it (`format`, `lint`,
+# `typecheck`, `test`), cached and in parallel. Workspaces join by defining
+# those script names. The addon's tests need `luajit` on PATH.
+################################################################################
+
+env:
+  TURBO_TELEMETRY_DISABLED: "1"
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+    silent: true
+
+  install:
+    desc: Install workspace dependencies (FROZEN=true keeps the lockfile)
+    cmds:
+      - bun install {{if eq .FROZEN "true"}}--frozen-lockfile{{end}}
+
+  ci:
+    desc: Run every check the way CI does (pass Turborepo flags after --)
+    cmds:
+      - bun turbo run format lint typecheck test {{.CLI_ARGS}}
+
+  ci:fix:
+    desc: Format and auto-fix lint across the repo
+    cmds:
+      - bun turbo run lint:fix {{.CLI_ARGS}}
+
+  build:
+    desc: Build the wai binaries into apps/cli/dist (TARGETS="bun-darwin-arm64 ..." for a subset)
+    dir: apps/cli
+    cmds:
+      - bun scripts/build.ts {{.TARGETS}}
+
+  dev:
+    desc: Run the bridge from source (stop the background one first, or it will wait for it)
+    dir: apps/cli
+    cmds:
+      - bun src/cli.ts run
+
+  setup:
+    desc: Link this checkout's addon into WoW and create the slot addons
+    dir: apps/cli
+    cmds:
+      - bun src/setup.ts
+
+  status:
+    desc: Check everything wai needs (WoW, addon link, slots, Claude, bridge)
+    dir: apps/cli
+    cmds:
+      - bun src/cli.ts status
+
+  release:check:
+    desc: Check a version is ready to tag (VERSION=0.2.0)
+    requires:
+      vars: [VERSION]
+    cmds:
+      - |
+        test "$(bun -e 'console.log(require("./apps/cli/package.json").version)')" = "{{.VERSION}}"
+        grep -q "^## Version: {{.VERSION}}$" apps/addon/wai.toc
+        grep -q "^## {{.VERSION}} " CHANGELOG.md
+      - task: ci
+
+  clean:
+    desc: Remove build output, caches and node_modules
+    cmds:
+      - bun turbo run clean
+      - rm -rf node_modules .turbo

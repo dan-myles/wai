@@ -1,0 +1,4 @@
+# Every install links each workspace's own dependencies and nothing else, so a workspace that
+# forgets to declare a package fails instead of borrowing a hoisted copy.
+[install]
+linker = "isolated"

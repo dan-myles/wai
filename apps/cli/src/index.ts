@@ -1,0 +1,664 @@
+// wai bridge. Receives messages from screenshots (live) or the SavedVariables outbox (on reload),
+// asks Claude, and streams replies back through slot addons (live) and Data.lua (on reload).
+// Every chat is keyed "Name-Realm#tab": each character has its own tabs, each with its own Claude session.
+import { watch } from "node:fs"
+import { mkdir, readdir, readFile, stat, unlink } from "node:fs/promises"
+import { join } from "node:path"
+
+import { ask } from "./claude"
+import {
+  ACCOUNTS_DIR,
+  DATA_FILE,
+  MODULES_DIR,
+  MODULES_FILE,
+  MOD_SLOT_COUNT,
+  SCREENSHOTS_DIR,
+  SLOT_COUNT,
+  STATE_FILE,
+  VID_SLOT_COUNT,
+  ensureStubs,
+  modSlotFile,
+  slotFile,
+  slotOffset,
+  vidSlotFile,
+  writeAtomic,
+} from "./files"
+import { parseSavedVariables, toLua } from "./lua"
+import { relaunchSelf } from "./service"
+import { IncompleteError, decode, parseTga } from "./shot"
+import { availableUpdate, update } from "./update"
+import { CHUNK_FRAMES, chunkLua, fetchVideo } from "./video"
+
+interface Message {
+  id: number
+  role: "user" | "assistant" | "system" | "status"
+  text: string
+  at: number
+  done?: boolean
+  reset?: boolean
+}
+interface Chat {
+  lastSeq: number
+  sessionId?: string
+  messages: Message[]
+  activity?: string
+}
+interface Module {
+  version: number
+  hash: string
+}
+interface State {
+  nextId: number
+  chats: Record<string, Chat>
+  modules: Record<string, Module>
+}
+interface Item {
+  seq: number
+  kind: string
+  who: string
+  tab: string
+  text?: string
+  ctx?: string | Record<string, unknown>
+  slot: number
+}
+
+const KEEP = 200
+const DATA_MESSAGES = 50
+const SLOT_MESSAGES = 6
+// Slots the addon might load next, around where the shared schedule says it is.
+const SLOTS_BEHIND = 30
+const SLOTS_AHEAD = 20
+const STREAM_THROTTLE_MS = 500
+const HEARTBEAT_MS = 2000
+const now = () => Math.floor(Date.now() / 1000)
+const chatKey = (who: string, tab: string) => `${who}#${tab || "main"}`
+
+const loaded = await readFile(STATE_FILE, "utf-8")
+  .then((s) => JSON.parse(s))
+  .catch(() => {})
+const state: State = {
+  chats: loaded?.chats ?? {},
+  modules: loaded?.modules ?? {},
+  nextId: loaded?.nextId ?? 1,
+}
+// Per-character conversations from before tabs become each character's "main" tab.
+for (const [who, chat] of Object.entries<Chat>(loaded?.chars ?? {})) {
+  state.chats[chatKey(who, "main")] ??= chat
+}
+// Replies cut off by a bridge restart can't resume; close them out so the addon stops waiting.
+for (const chat of Object.values(state.chats)) {
+  chat.activity = undefined
+  for (const m of chat.messages) {
+    if (m.done !== false) {
+      continue
+    }
+    m.done = true
+    if (m.text) {
+      m.text +=
+        "\n\n(Interrupted: the bridge restarted. Ask again to continue.)"
+    } else {
+      Object.assign(m, {
+        role: "system",
+        text: "Error: the bridge restarted before replying. Ask again.",
+      })
+    }
+  }
+}
+
+const queue: Item[] = []
+let inFlight: string | undefined // chat key
+let updateAvailable: string | undefined // newer release version, if any
+let draining = false
+let beat = 0 // bumps on every publish so the addon can tell a live bridge from a stalled one
+// Where the addon started polling: slot k0 at time `start`, for character `who`.
+let schedule: { k0: number; start: number; who: string } | undefined
+
+const chat = (key: string) =>
+  (state.chats[key] ??= { lastSeq: 0, messages: [] })
+const busy = (key: string) =>
+  inFlight === key || queue.some((i) => chatKey(i.who, i.tab) === key)
+
+function say(
+  key: string,
+  role: Message["role"],
+  text: string,
+  extra: Partial<Message> = {},
+) {
+  const m: Message = { at: now(), id: state.nextId++, role, text, ...extra }
+  chat(key).messages.push(m)
+  return m
+}
+
+function snapshot(key: string, limit: number) {
+  const c = chat(key)
+  return {
+    ackSeq: c.lastSeq,
+    busy: busy(key),
+    activity: c.activity?.replaceAll("|", "||"),
+    // "|" starts a WoW escape sequence; "||" renders a literal pipe.
+    messages: c.messages
+      .slice(-limit)
+      .map((m) => ({ ...m, text: m.text.replaceAll("|", "||") })),
+  }
+}
+
+// --- UI modules ------------------------------------------------------------------------------
+
+const moduleCode = new Map<string, string>()
+// Module slots used since the addon last reloaded; each change takes a fresh one.
+let modSlotsUsed = 0
+const moduleSlots = new Map<string, number>()
+
+function modulesSnapshot() {
+  return Object.fromEntries(
+    Object.entries(state.modules).map(([name, m]) => [
+      name,
+      { slot: moduleSlots.get(name), version: m.version },
+    ]),
+  )
+}
+
+async function scanModules(force = false) {
+  const files = (await readdir(MODULES_DIR).catch(() => [])).filter((f) =>
+    /^[\w-]+\.lua$/.test(f),
+  )
+  const seen = new Set<string>()
+  let changed = false
+  for (const file of files) {
+    const name = file.slice(0, -4)
+    seen.add(name)
+    const code = await readFile(join(MODULES_DIR, file), "utf-8")
+    moduleCode.set(name, code)
+    const hash = String(Bun.hash(code))
+    if (state.modules[name]?.hash === hash) {
+      continue
+    }
+    const version = (state.modules[name]?.version ?? 0) + 1
+    state.modules[name] = { hash, version }
+    changed = true
+    if (modSlotsUsed < MOD_SLOT_COUNT) {
+      const slot = ++modSlotsUsed
+      moduleSlots.set(name, slot)
+      await writeAtomic(
+        modSlotFile(slot),
+        `WaiModuleDefs = WaiModuleDefs or {}\nWaiModuleDefs[${toLua(name)}] = ${toLua({ code, version })}\n`,
+      )
+    } else {
+      moduleSlots.delete(name) // the addon will ask for a reload to pick it up
+    }
+    console.log(`wai: module ${name} v${version}`)
+  }
+  for (const name of Object.keys(state.modules)) {
+    if (seen.has(name)) {
+      continue
+    }
+    Reflect.deleteProperty(state.modules, name)
+    moduleSlots.delete(name)
+    moduleCode.delete(name)
+    changed = true
+  }
+  if (!changed && !force) {
+    return
+  }
+  // ModuleDefs.lua carries every module for the next reload or login.
+  const defs = Object.fromEntries(
+    [...moduleCode].map(([name, code]) => [
+      name,
+      { code, version: state.modules[name]!.version },
+    ]),
+  )
+  await writeAtomic(
+    MODULES_FILE,
+    `-- Generated by the wai bridge from ui/*.lua. Do not edit.\nWaiModuleDefs = ${toLua(defs)}\n`,
+  )
+  await publish()
+}
+
+// --- Video ------------------------------------------------------------------------------------
+
+interface VideoState {
+  id: string
+  title: string
+  status: "loading" | "ready" | "error"
+  loop: boolean
+  w?: number
+  h?: number
+  fps?: number
+  base?: number
+  chunks?: number
+  error?: string
+}
+const videos = new Map<string, VideoState>() // who -> what they're watching
+let vidSlotsUsed = 0
+let videosLoading = 0
+
+// [[video:query or URL]] plays a landscape video; [[clip:query]] a looping vertical clip (TikTok mode).
+async function playVideo(who: string, kind: string, query: string) {
+  const id = String(Date.now())
+  const entry: VideoState = {
+    id,
+    loop: kind === "clip",
+    status: "loading",
+    title: query,
+  }
+  videos.set(who, entry)
+  videosLoading++
+  await publish()
+  try {
+    const video = await fetchVideo(
+      query,
+      kind === "clip" ? "portrait" : "landscape",
+    )
+    const free = VID_SLOT_COUNT - vidSlotsUsed
+    if (free <= 0) {
+      throw new Error(
+        "Out of video slots for this session. Reload to free them.",
+      )
+    }
+    const chunks = Math.min(free, Math.ceil(video.frames.length / CHUNK_FRAMES))
+    const base = vidSlotsUsed + 1
+    for (let i = 0; i < chunks; i++) {
+      const frames = video.frames.slice(
+        i * CHUNK_FRAMES,
+        (i + 1) * CHUNK_FRAMES,
+      )
+      await writeAtomic(vidSlotFile(base + i), chunkLua(id, i + 1, frames))
+    }
+    vidSlotsUsed += chunks
+    Object.assign(entry, {
+      base,
+      chunks,
+      fps: video.fps,
+      h: video.h,
+      status: "ready",
+      title: video.title,
+      w: video.w,
+    })
+    console.log(
+      `wai: video "${video.title}" in slots ${base}-${base + chunks - 1}`,
+    )
+  } catch (error) {
+    Object.assign(entry, {
+      status: "error",
+      error: (error instanceof Error ? error.message : String(error)).slice(
+        0,
+        200,
+      ),
+    })
+    console.error("wai: video failed", error)
+  } finally {
+    videosLoading--
+  }
+}
+
+// --- Publishing ------------------------------------------------------------------------------
+
+async function writeSlots() {
+  if (!schedule) {
+    return
+  }
+  const est = schedule.k0 + slotOffset((Date.now() - schedule.start) / 1000)
+  const from = Math.max(schedule.k0, est - SLOTS_BEHIND)
+  const to = Math.min(SLOT_COUNT, est + SLOTS_AHEAD)
+  if (from > to) {
+    return
+  }
+  const prefix = `${schedule.who}#`
+  const chats = Object.fromEntries(
+    Object.keys(state.chats)
+      .filter((k) => k.startsWith(prefix))
+      .map((k) => [k.slice(prefix.length), snapshot(k, SLOT_MESSAGES)]),
+  )
+  const newer = updateAvailable ? { version: updateAvailable } : undefined
+  const content = `WaiSlot = ${toLua({ beat, chats, modules: modulesSnapshot(), update: newer, video: videos.get(schedule.who), who: schedule.who })}\n`
+  const writes = []
+  for (let i = from; i <= to; i++) {
+    writes.push(writeAtomic(slotFile(i), content))
+  }
+  await Promise.all(writes)
+}
+
+// Writes are chained so concurrent callers never interleave on the same tmp files.
+let writing = Promise.resolve()
+function publish() {
+  const write = async () => {
+    beat++
+    for (const c of Object.values(state.chats)) {
+      c.messages = c.messages.slice(-KEEP)
+    }
+    await writeAtomic(STATE_FILE, JSON.stringify(state, null, 2))
+    const chats = Object.fromEntries(
+      Object.keys(state.chats).map((k) => [k, snapshot(k, DATA_MESSAGES)]),
+    )
+    const newer = updateAvailable ? { version: updateAvailable } : undefined
+    await writeAtomic(
+      DATA_FILE,
+      `-- Generated by the wai bridge. Do not edit.\nWaiData = ${toLua({ beat, chats, update: newer })}\n`,
+    )
+    await writeSlots()
+  }
+  return (writing = writing
+    .then(write, write)
+    .catch((error) => console.error("wai: publish failed", error)))
+}
+
+let streamTimer: Timer | undefined
+function publishSoon() {
+  streamTimer ??= setTimeout(() => {
+    streamTimer = undefined
+    void publish()
+  }, STREAM_THROTTLE_MS)
+}
+
+// While Claude works (even silently, e.g. a long tool call), keep the addon's view fresh.
+setInterval(() => {
+  if (inFlight || videosLoading) {
+    void publish()
+  }
+}, HEARTBEAT_MS)
+
+// --- Conversation ----------------------------------------------------------------------------
+
+async function receive(items: Item[]) {
+  const fresh = items
+    .filter((i) => i.seq > chat(chatKey(i.who, i.tab)).lastSeq)
+    .sort((a, b) => a.seq - b.seq)
+  if (!fresh.length) {
+    return
+  }
+  for (const item of fresh) {
+    const key = chatKey(item.who, item.tab)
+    const c = chat(key)
+    c.lastSeq = item.seq
+    if (item.kind === "reset") {
+      c.sessionId = undefined
+      c.messages = []
+      for (let i = queue.length - 1; i >= 0; i--) {
+        if (chatKey(queue[i]!.who, queue[i]!.tab) === key) {
+          queue.splice(i, 1)
+        }
+      }
+      say(key, "system", "Started a new conversation.", { reset: true })
+    } else if (item.text) {
+      item.text = item.text.replaceAll("||", "|")
+      say(key, "user", item.text)
+      queue.push(item)
+    }
+  }
+  const last = fresh.at(-1)!
+  schedule = { k0: last.slot, start: Date.now(), who: last.who }
+  console.log(
+    `wai: ${chatKey(last.who, last.tab)} sent through seq ${last.seq} (slot ${last.slot})`,
+  )
+  await publish()
+  void drain()
+}
+
+function prompt(item: Item) {
+  const ctx =
+    typeof item.ctx === "string"
+      ? item.ctx
+      : Object.entries(item.ctx ?? {})
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join("; ") : v}`)
+          .join("\n")
+  return `[game]\n${ctx}\n[/game]\n\n${item.text}`
+}
+
+async function drain() {
+  if (draining) {
+    return
+  }
+  draining = true
+  while (queue.length) {
+    const item = queue.shift()!
+    const key = chatKey(item.who, item.tab)
+    const c = chat(key)
+    inFlight = key
+    c.activity = "Thinking"
+    const reply = say(key, "assistant", "", { done: false })
+    try {
+      const res = await ask(prompt(item), c.sessionId, (text, activity) => {
+        reply.text = text
+        c.activity = activity
+        publishSoon()
+      })
+      c.sessionId = res.sessionId
+      reply.text = res.text
+      console.log(`wai: answered seq ${item.seq}`)
+      // Fetch any video the reply asked for before finishing, so the addon is still polling.
+      const video = res.text.match(/\[\[(video|clip):([^\]]+)\]\]/)
+      if (video) {
+        c.activity = "Loading video"
+        await playVideo(item.who, video[1]!, video[2]!.trim())
+      }
+    } catch (error) {
+      reply.role = "system"
+      reply.text = `Error: ${error instanceof Error ? error.message : String(error)}`
+      console.error(`wai: seq ${item.seq} failed`, error)
+    }
+    reply.done = true
+    c.activity = undefined
+    inFlight = undefined
+    clearTimeout(streamTimer)
+    streamTimer = undefined
+    await scanModules() // catch module writes the watcher hasn't reported yet
+    await publish()
+  }
+  draining = false
+}
+
+// --- Inbound: screenshots (live) -------------------------------------------------------------
+
+const KINDS: Record<number, string> = {
+  1: "chat",
+  2: "reset",
+  3: "ping",
+  4: "video",
+  5: "update",
+}
+
+// In-game /update: progress shows up as status lines in the chat that asked.
+async function runUpdate(who: string, tab: string) {
+  const key = chatKey(who, tab)
+  const c = chat(key)
+  inFlight = key
+  c.activity = "Updating wai"
+  const report = async (text: string) => {
+    say(key, "status", text, { done: true })
+    await publish()
+  }
+  try {
+    const result = await update(async (msg) => {
+      await report(msg)
+    })
+    await report(result.message)
+    if (result.updated) {
+      updateAvailable = undefined
+      inFlight = undefined
+      c.activity = undefined
+      await report("Restarting the bridge…")
+      await writing
+      await relaunchSelf()
+    }
+  } catch (error) {
+    await report(
+      `Update failed: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+  inFlight = undefined
+  c.activity = undefined
+  await publish()
+}
+const reading = new Set<string>()
+
+async function readShot(path: string) {
+  if (reading.has(path)) {
+    return
+  }
+  reading.add(path)
+  try {
+    // The client may still be writing the file when the watcher fires.
+    for (let attempt = 0; attempt < 30; attempt++) {
+      try {
+        const shot = decode(parseTga(await readFile(path)))
+        if (!shot) {
+          return
+        } // a real screenshot, leave it alone
+        await unlink(path)
+        const [text, ctx, who = "", tab = "main"] = shot.payload.split("\0")
+        if (KINDS[shot.kind] === "update") {
+          schedule = { k0: shot.slot, start: Date.now(), who }
+          await runUpdate(who, tab)
+          return
+        }
+        if (KINDS[shot.kind] === "ping" || KINDS[shot.kind] === "video") {
+          schedule = { k0: shot.slot, start: Date.now(), who }
+          // A direct video request from the Fun menu: "clip:query" or "video:query", no Claude involved.
+          const request =
+            KINDS[shot.kind] === "video" && text?.match(/^(video|clip):(.+)$/)
+          if (request) {
+            await playVideo(who, request[1]!, request[2]!)
+          }
+          await publish()
+          return
+        }
+        await receive([
+          {
+            ctx,
+            kind: KINDS[shot.kind] ?? "chat",
+            seq: shot.seq,
+            slot: shot.slot,
+            tab,
+            text,
+            who,
+          },
+        ])
+        return
+      } catch (error) {
+        if (
+          !(error instanceof IncompleteError) &&
+          (error as NodeJS.ErrnoException).code !== "ENOENT"
+        ) {
+          throw error
+        }
+      }
+      await Bun.sleep(100)
+    }
+  } catch (error) {
+    console.error(`wai: failed to read ${path}`, error)
+  } finally {
+    reading.delete(path)
+  }
+}
+
+// --- Inbound: SavedVariables outbox (on reload) -----------------------------------------------
+
+async function latestSavedVariables() {
+  let best: { path: string; mtime: number } | undefined
+  for (const account of await readdir(ACCOUNTS_DIR).catch(() => [])) {
+    const path = join(ACCOUNTS_DIR, account, "SavedVariables", "wai.lua")
+    const s = await stat(path).catch(() => {})
+    if (s && (!best || s.mtimeMs > best.mtime)) {
+      best = { path, mtime: s.mtimeMs }
+    }
+  }
+  return best
+}
+
+async function scan() {
+  const sv = await latestSavedVariables()
+  if (!sv) {
+    return
+  }
+  const db = parseSavedVariables(await readFile(sv.path, "utf-8")).WaiDB as
+    | { outbox?: unknown; who?: unknown }
+    | undefined
+  // SavedVariables are written on reload/logout: the addon polls from slot 1 again, and every
+  // module is now in ModuleDefs.lua, so the module slots start over.
+  schedule = {
+    k0: 1,
+    start: Date.now(),
+    who: typeof db?.who === "string" ? db.who : "",
+  }
+  modSlotsUsed = 0
+  moduleSlots.clear()
+  vidSlotsUsed = 0
+  videos.clear()
+  const outbox = (Array.isArray(db?.outbox) ? db.outbox : []) as Omit<
+    Item,
+    "slot"
+  >[]
+  await receive(
+    outbox
+      .filter((i) => typeof i?.seq === "number")
+      .map((i) => ({
+        ...i,
+        kind: i.kind ?? "chat",
+        slot: 1,
+        tab: typeof i.tab === "string" ? i.tab : "main",
+        who: typeof i.who === "string" ? i.who : "",
+      })),
+  )
+  if (inFlight) {
+    await publish()
+  }
+}
+
+let scanning = Promise.resolve()
+const rescan = () =>
+  (scanning = scanning
+    .then(scan)
+    .catch((error) => console.error("wai: scan failed", error)))
+
+let debounce: Timer | undefined
+watch(ACCOUNTS_DIR, { recursive: true }, (_, filename) => {
+  if (!filename?.toString().endsWith(join("SavedVariables", "wai.lua"))) {
+    return
+  }
+  clearTimeout(debounce)
+  debounce = setTimeout(rescan, 250)
+})
+
+await mkdir(SCREENSHOTS_DIR, { recursive: true })
+watch(SCREENSHOTS_DIR, (_, filename) => {
+  if (filename?.toString().endsWith(".tga")) {
+    void readShot(join(SCREENSHOTS_DIR, filename.toString()))
+  }
+})
+
+await ensureStubs()
+let moduleDebounce: Timer | undefined
+watch(MODULES_DIR, () => {
+  clearTimeout(moduleDebounce)
+  moduleDebounce = setTimeout(() => {
+    scanModules().catch((error) =>
+      console.error("wai: module scan failed", error),
+    )
+  }, 300)
+})
+
+await scanModules(true)
+await publish()
+
+const logUpdateError = (error: unknown) =>
+  console.error("wai: update check failed", error)
+
+async function checkForUpdate() {
+  // Never throws: no network or no access just means no update notice.
+  updateAvailable = await availableUpdate()
+  if (updateAvailable) {
+    console.log(`wai: ${updateAvailable} is available`)
+    await publish()
+  }
+}
+checkForUpdate().catch(logUpdateError)
+setInterval(
+  () => {
+    checkForUpdate().catch(logUpdateError)
+  },
+  24 * 60 * 60 * 1000,
+)
+console.log(
+  `wai bridge: watching ${ACCOUNTS_DIR}, ${SCREENSHOTS_DIR} and ${MODULES_DIR}`,
+)
+rescan()

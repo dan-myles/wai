@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@wai/oxfmt-config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#oxfmt/*": "./presets/*"
+  },
+  "exports": {
+    ".": "./oxfmt.config.ts",
+    "./base": "./presets/base.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false",
+    "format": "bun x --bun oxfmt -c ./oxfmt.config.ts --check .",
+    "format:fix": "bun x --bun oxfmt -c ./oxfmt.config.ts --write .",
+    "clean": "git clean -xdf dist node_modules .cache .turbo"
+  },
+  "dependencies": {
+    "oxfmt": "catalog:",
+    "ultracite": "catalog:"
+  },
+  "devDependencies": {
+    "@wai/tsconfig": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

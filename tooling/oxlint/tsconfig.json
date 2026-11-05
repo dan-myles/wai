@@ -1,0 +1,10 @@
+{
+  "extends": "@wai/tsconfig/internal-package.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "#oxlint/*": ["./*"]
+    }
+  },
+  "include": ["*.ts", "presets/*.ts"]
+}

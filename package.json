@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@wai/monorepo",
+  "private": true,
+  "packageManager": "bun@1.3.11",
+  "devDependencies": {
+    "turbo": "catalog:"
+  },
+  "workspaces": {
+    "packages": [
+      "apps/*",
+      "tooling/*"
+    ],
+    "catalog": {
+      "@types/bun": "^1.3.14",
+      "oxfmt": "^0.63.0",
+      "oxlint": "^1.83.0",
+      "turbo": "2.11.5",
+      "typescript": "~6.0.3",
+      "ultracite": "7.12.0"
+    }
+  }
+}

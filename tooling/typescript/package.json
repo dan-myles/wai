@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@wai/tsconfig",
+  "private": true,
+  "version": "0.1.0",
+  "files": [
+    "*.json"
+  ]
+}

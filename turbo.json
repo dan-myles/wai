@@ -1,0 +1,15 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "ui": "stream",
+  "globalDependencies": ["bunfig.toml"],
+  "tasks": {
+    "format": { "outputLogs": "new-only" },
+    "lint": { "outputLogs": "new-only" },
+    "typecheck": { "outputLogs": "new-only" },
+    "test": { "outputLogs": "new-only" },
+    "build": { "outputs": ["dist/**"], "outputLogs": "new-only" },
+    "format:fix": { "cache": false },
+    "lint:fix": { "cache": false, "dependsOn": ["format:fix"] },
+    "clean": { "cache": false }
+  }
+}

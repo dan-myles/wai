@@ -1,0 +1,17 @@
+name: Set up wai
+description: Bun (from packageManager), Task, LuaJIT and workspace dependencies
+runs:
+  using: composite
+  steps:
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version-file: package.json
+    - uses: go-task/setup-task@v1
+      with:
+        version: 3.51.1
+    - name: Install LuaJIT (addon tests)
+      shell: bash
+      run: sudo apt-get update && sudo apt-get install -y luajit
+    - name: Install dependencies
+      shell: bash
+      run: task install FROZEN=true

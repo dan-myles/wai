@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@wai/cli",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "The wai CLI and bridge: Claude inside World of Warcraft: Forever",
+  "scripts": {
+    "start": "bun src/cli.ts run",
+    "setup": "bun src/setup.ts",
+    "build": "bun scripts/build.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt --check .",
+    "format:fix": "oxfmt --write .",
+    "clean": "git clean -xdf dist node_modules .cache .turbo"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@wai/oxfmt-config": "workspace:*",
+    "@wai/oxlint-config": "workspace:*",
+    "@wai/tsconfig": "workspace:*",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

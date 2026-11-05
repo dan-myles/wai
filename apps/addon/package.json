@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@wai/addon",
+  "version": "0.2.0",
+  "private": true,
+  "description": "The wai World of Warcraft addon (Lua). Tests run headless against a stub of the WoW API.",
+  "scripts": {
+    "test": "luajit test/headless.lua .",
+    "clean": "git clean -xdf .turbo"
+  }
+}

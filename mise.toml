@@ -1,0 +1,12 @@
+################################################################################
+# Tools the repository runs, pinned for laptops and CI. Bun's pin lives in
+# package.json's packageManager, which Turborepo also requires. LuaJIT runs the
+# addon's headless tests; install it with your package manager
+# (`brew install luajit`, `apt install luajit`).
+################################################################################
+
+[settings]
+idiomatic_version_file_enable_tools = ["bun"]
+
+[tools]
+task = "3.51.1"

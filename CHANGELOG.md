@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.0 (2026-11-05)
+
+The repo now follows the syncfast monorepo template. No change in game beyond the version number.
+
+- **Layout:** Bun workspaces: `apps/cli` (bridge and CLI), `apps/addon` (the WoW addon), and
+  `tooling/typescript`, `tooling/oxfmt` and `tooling/oxlint` for shared presets. Versions are pinned
+  in the root catalog.
+- **Commands:** Task is the single entry point (`task ci`, `task build`, `task dev`, `task setup`,
+  `task release:check`), with Turborepo running format, lint, typecheck and tests in every workspace.
+- **Code quality:** oxfmt and oxlint (ultracite) across the CLI, which caught a variable shadowing the
+  update function. TypeScript now runs with `noUncheckedIndexedAccess`.
+- **Docs:** `AGENTS.md` (also `CLAUDE.md`) guides agents; the design guide moved to `docs/DESIGN.md`.
+- **Fix:** `wai install` on macOS retries launchd registration while a previous registration is
+  still unloading, instead of failing with "Input/output error".
+- CI and releases run through a shared setup action and `actions/checkout@v5`.
+
 ## 0.1.0 (2026-11-05)
 
 The `wai` CLI, with self-update. wai now ships as one standalone binary per platform (macOS arm64/x64,

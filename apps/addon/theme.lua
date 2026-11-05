@@ -12,6 +12,7 @@ T.RING = MEDIA .. "ring.tga"
 T.ARROW = MEDIA .. "arrow.tga"
 T.NAV = MEDIA .. "nav.tga"
 T.PIN = MEDIA .. "pin.tga"
+T.GEAR = MEDIA .. "gear.tga"
 T.SOLID = "Interface\\Buttons\\WHITE8X8"
 T.WAI_ICON = "Interface\\Icons\\Spell_Holy_MagicalSentry"
 
@@ -311,6 +312,60 @@ function T.toggle(parent, opts)
     end))
     row:SetScript("OnEnter", function() row.label:SetTextColor(C.gold[1], C.gold[2], C.gold[3]) end)
     row:SetScript("OnLeave", function() row.label:SetTextColor(C.text[1], C.text[2], C.text[3]) end)
+    row:Refresh()
+    return row
+end
+
+-- A labelled choice between a few options: a rounded inset track holding pill segments, the
+-- selected one filled gold. opts: { label, hint, options = { { value, text }, ... }, get, set }
+function T.segmented(parent, opts)
+    local row = CreateFrame("Frame", nil, parent)
+    row:SetHeight(opts.hint and 40 or 28)
+    row.label = T.label(row, "regular", 13, C.text)
+    row.label:SetPoint("TOPLEFT", 0, opts.hint and -3 or -7)
+    row.label:SetText(opts.label)
+    if opts.hint then
+        row.hint = T.label(row, "regular", 11, C.muted)
+        row.hint:SetPoint("TOPLEFT", row.label, "BOTTOMLEFT", 0, -4)
+        row.hint:SetText(opts.hint)
+    end
+    local track = CreateFrame("Frame", nil, row)
+    track:SetPoint("RIGHT")
+    track:SetHeight(24)
+    T.box(track, 8, C.inset, C.line)
+    local segments, x = {}, 3
+    for _, option in ipairs(opts.options) do
+        local seg = CreateFrame("Button", nil, track)
+        seg.value = option[1]
+        seg.bg = T.box(seg, 6, C.clear)
+        seg.text = T.label(seg, "medium", 11, C.muted)
+        seg.text:SetPoint("CENTER")
+        seg.text:SetJustifyH("CENTER")
+        seg.text:SetText(option[2])
+        seg:SetSize(math.ceil(seg.text:GetStringWidth()) + 18, 18)
+        seg:SetPoint("LEFT", x, 0)
+        x = x + seg:GetWidth() + 2
+        segments[#segments + 1] = seg
+    end
+    track:SetWidth(x + 1)
+    if row.hint then row.hint:SetPoint("RIGHT", track, "LEFT", -10, 0) end
+    function row:Refresh()
+        local current = opts.get()
+        for _, seg in ipairs(segments) do
+            local on = seg.value == current
+            seg.bg:SetFill(on and C.goldSoft or C.clear)
+            local c = on and C.ink or (seg:IsMouseOver() and C.gold or C.muted)
+            seg.text:SetTextColor(c[1], c[2], c[3])
+        end
+    end
+    for _, seg in ipairs(segments) do
+        seg:SetScript("OnClick", ns.core.guard(function()
+            opts.set(seg.value)
+            row:Refresh()
+        end))
+        seg:SetScript("OnEnter", function() row:Refresh() end)
+        seg:SetScript("OnLeave", function() row:Refresh() end)
+    end
     row:Refresh()
     return row
 end

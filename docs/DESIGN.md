@@ -70,6 +70,8 @@ Line spacing 3–4px on multi-line text.
 - **Buttons** (`T.button`): `gold` filled call to action with ink text; `outline` slate with a hairline that turns gold on hover; `ghost` text-only gold. Disabled buttons drop to `panel` and `subtle`.
 - **Input:** recessed `inset` field. On focus the border turns `goldSoft` with a soft gold glow behind it. Round gold send button with an arrow.
 - **Toggles** (`T.toggle`): a label (Geist 13, gold on hover) with an optional muted hint, and a 36×20 rounded track on the right. Off is an `inset` track, `line` border and muted knob. On is a `goldSoft` track with an `ink` knob that slides across.
+- **Segmented control** (`T.segmented`): a label and hint on the left; on the right a 24px `inset` track with a hairline border holding pill segments in Geist Medium 11. The selected segment fills `goldSoft` with `ink` text; the others are muted and turn gold on hover.
+- **Settings panel** (`/settings`, or the gear in the chat header): a 340px floating panel in the same chrome as the Fun menu, with `GENERAL`, `WINDOWS` and `ABOUT` sections. Rows are toggles, segmented controls and outline buttons, each with a one-line hint. The About line shows the version in gold and the bridge's last contact in muted text.
 - **Fun menu** (`/fun`): a 300px floating panel with a portrait, "Fun" title and ×. `TOGGLES` and `TEST` section labels sit beside faded gold lines; test actions are a two-column grid of outline buttons.
 - **Banners:** one line plus an optional gold action. Tones: warn (gold), error (red), info (blue).
 - **Attachment bar:** `ASKING ABOUT` label, item icon, the link, and a × to remove.

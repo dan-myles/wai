@@ -129,7 +129,7 @@ local slotData = {}
 _G.loadstring = loadstring
 local modSlots = {}
 vidSlots = {}
-_G.C_AddOns = { LoadAddOn = function(name)
+_G.C_AddOns = { GetAddOnMetadata = function(_, field) return field == "Version" and "9.9.9" or nil end, LoadAddOn = function(name)
   local vid = tonumber(name:match("^wai_vid(%d+)$"))
   if vid then _G.WaiVideoChunk = vidSlots[vid]; vidLoads = (vidLoads or 0) + 1; return true end
   local mod = tonumber(name:match("^wai_mod(%d+)$"))
@@ -413,6 +413,50 @@ slotData.default = { who = "Backshot-Forever", beat = 61, chats = { main = { ack
 now = now + 2; __ticker.fn(); tick(0.01)
 assert(#texts("Restart WoW to load the new addon") == 1 and not ns.core.view().update, "status lines shown, update notice cleared")
 print("update ok")
+
+-- Settings: /settings opens the panel; typing speed, whispers, window reset, about, updates.
+ns.commands.run("/settings")
+assert(WaiSettings and WaiSettings:IsShown(), "settings opens")
+tick(1.1, 1)
+assert(#texts("wai 9.9.9") == 1, "about shows the version")
+local function clickText(label)
+  for _, f in ipairs(frames) do
+    if f.kind == "Button" and ((f.label and f.label.text == label) or (f.text and f.text.text == label)) and f.scripts.OnClick then return f.scripts.OnClick(f, "LeftButton") end
+  end
+  error("no button " .. label)
+end
+clickText("Instant")
+assert(ns.settings.get("typing") == "instant", "typing instant")
+-- Instant: a live streamed reply shows in full immediately.
+ns.core.switchTab("main"); ns.ui.show()
+slotData.default = { who = "Backshot-Forever", beat = 70, chats = { main = { ackSeq = WaiDB.seq, busy = true, messages = {
+  { id = 40, role = "assistant", text = "Instant text appears all at once without typing", done = false, at = 40 },
+} } } }
+ns.core.sync(); fire("SCREENSHOT_SUCCEEDED"); now = now + 2; __ticker.fn(); tick(0.01)
+assert(#texts("Instant text appears all at once without typing") >= 1, "instant typing (also captioned while TikTok mode is on)")
+clickText("Normal")
+-- Whispers off: a reply while wai is closed doesn't go to chat.
+for _, f in ipairs(frames) do if f.kind == "Button" and f.label and f.label.text == "Whisper replies" then f.scripts.OnClick(f) end end
+assert(ns.settings.get("whisper") == false, "whisper off")
+WaiFrame:Hide()
+local before = #chatOut
+slotData.default = { who = "Backshot-Forever", beat = 71, chats = { main = { ackSeq = WaiDB.seq, busy = false, messages = {
+  { id = 41, role = "assistant", text = "quiet reply", done = true, at = 41 },
+} } } }
+now = now + 2; __ticker.fn(); tick(0.01)
+assert(#chatOut == before, "no whisper when turned off")
+-- Reset window positions.
+WaiDB.ui = { x = 1, y = 2, w = 3, h = 4 }
+clickText("Reset window positions")
+assert(WaiDB.ui == nil and WaiFrame.w == 420, "positions reset")
+-- Check for updates sends an update request.
+_G.Screenshot = function() end
+fire("SCREENSHOT_SUCCEEDED")
+clickText("Check for updates")
+assert(lastPayload() == 5, "check for updates sends kind 5")
+fire("SCREENSHOT_SUCCEEDED")
+ns.commands.run("/settings"); assert(not WaiSettings:IsShown(), "/settings toggles closed")
+print("settings ok")
 
 -- Suggestions while typing.
 subjectInput:SetText("/re")

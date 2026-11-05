@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0 (2026-11-05)
+
+A settings menu.
+
+- **`/settings`** (or the new gear button in the chat header) opens a floating panel in wai's design,
+  grouped into General, Windows and About.
+- **Typing speed:** Instant, Fast or Normal, with a new segmented control.
+- **Whisper replies:** turn off replies being posted to chat while the wai window is closed.
+- **Killstreaks** on or off for this character (same switch as in `/fun`).
+- **Reset window positions** puts every wai window back in its default spot.
+- **About** shows the version and when the bridge was last heard from, with Check for updates and Help.
+- CI uses `go-task/setup-task@v2` (Node 24).
+
 ## 0.2.0 (2026-11-05)
 
 The repo now follows the syncfast monorepo template. No change in game beyond the version number.

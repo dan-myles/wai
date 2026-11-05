@@ -58,7 +58,7 @@ Use them like this:
 ## What the player can do
 
 - Type in the wai window, or `/wai <message>` from normal chat.
-- Commands: `/help`, `/new` (a new chat tab; each tab is its own conversation with you), `/reload` (refresh the live session), `/fun` (a menu with toggles for TikTok mode and killstreaks, plus test buttons).
+- Commands: `/help`, `/new` (a new chat tab; each tab is its own conversation with you), `/reload` (refresh the live session), `/fun` (a menu with toggles for TikTok mode and killstreaks, plus test buttons), `/settings` (typing speed, whisper replies, killstreaks, resetting window positions; also the gear in the header), `/update`.
 - Alt-click an item, a quest in their log, their target's portrait or a player's name in chat to ask about it. Quest dialogs have an Ask wai button.
 - Right-click the waypoint arrow to clear it.
 

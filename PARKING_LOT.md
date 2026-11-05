@@ -4,13 +4,8 @@ Ideas we're not working on yet. Each needs a feasibility check first.
 
 ## Opt-in telemetry
 Anonymous, opt-in usage and error reporting (off by default) to learn what breaks in the field: bridge errors, decode failures, stalled streams, Lua errors, client version and OS.
-- Turned on and off with a toggle in the new `/settings` menu (see below), plus a consent prompt the first time. A "see what's sent" view lives there too.
+- Turned on and off with a toggle in the `/settings` menu (built in v0.3.0), plus a consent prompt the first time. A "see what's sent" view lives there too.
 - Never chat content or character names.
-
-## Settings menu (`/settings`)
-A new `/settings` command in the wai chat opens a settings panel in the same modern design as the Fun menu (floating, sections, `T.toggle` switches), built for growth.
-- First settings: telemetry (opt-in), minimap button on/off, typing speed, whisper replies to chat when the window is closed, killstreaks (mirrors `/fun`).
-- Sections with gold uppercase labels and faded lines, a short hint under each setting, saved per character or per account as fits.
 
 ## Minimap button
 A round wai portrait button on the minimap ring (gold ring, arcane icon) that toggles the wai window: left-click opens/closes, right-click opens `/fun` or `/settings`, drag to move around the ring.
@@ -22,6 +17,7 @@ Tabs are named once, from the first message ("best leveling route fo"). Instead,
 - Never overwrite a title the player renamed by hand (`auto` flag already tracks that). Animate the change subtly in the tab strip.
 
 ## Done
+- **Settings menu (v0.3.0):** `/settings` or the header gear opens a floating panel with grouped, data-driven settings: typing speed (new segmented control), whisper replies, killstreaks, reset window positions, and an About row with the version, bridge contact, Check for updates and Help. Later releases add their rows to `settings.SECTIONS`.
 - **Monorepo structure (v0.2.0):** syncfast's layout: Bun workspaces (`apps/cli`, `apps/addon`, `tooling/typescript|oxfmt|oxlint`) with a version catalog, Turborepo for checks, Task as the single entry point, mise pins, an `AGENTS.md` guide, oxfmt + oxlint (ultracite), and CI through a shared setup action.
 - **`wai` CLI with self-update (v0.1.0):** one binary per platform built with `bun build --compile`, release installers with SHA-256 checks, `wai install/run/update/status/logs/uninstall`, in-game `/update` with progress and an update-available banner, video tools on demand, and a GitHub Actions release pipeline.
 - **Hot-swappable custom UI slots:** Built as UI modules: Claude writes `ui/<name>.lua`, and the bridge hot-loads each change through 40 `wai_modNN` slots. See apps/cli/SKILL.md.

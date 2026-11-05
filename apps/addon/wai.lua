@@ -19,7 +19,7 @@ local CAPACITY = GRID_COLS * GRID_ROWS * 3 / 8 -- 3 bits per block, one per colo
 local HEADER_BYTES = 11
 local VERSION = 2
 local KINDS = { chat = 1, reset = 2, ping = 3, video = 4, update = 5 }
-local CHARS_PER_SEC = 90
+local CHARS_PER_SEC = { normal = 90, fast = 260 } -- by the "typing" setting; "instant" skips typing
 
 local LoadAddOn = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
 
@@ -29,6 +29,7 @@ local notice
 local nextSlot, poll, pollTicker = 1, nil, nil
 local lastBeat, lastBeatAt = nil, 0
 local updateAvailable -- a newer wai release the bridge found
+local contactAt -- when a live snapshot from the bridge last arrived
 local grid, gridBlocks, shots, shooting, savedFormat = nil, nil, {}, nil, nil
 local localId = 0
 local typer = CreateFrame("Frame")
@@ -107,7 +108,8 @@ typer:SetScript("OnUpdate", guard(function(self, elapsed)
     for _, c in pairs(chats) do
         for _, m in ipairs(c.messages) do
             if m.shown < #m.text then
-                m.budget = (m.budget or 0) + elapsed * math.max(CHARS_PER_SEC, (#m.text - m.shown) * 2)
+                local speed = CHARS_PER_SEC[ns.settings.get("typing")] or CHARS_PER_SEC.normal
+                m.budget = (m.budget or 0) + elapsed * math.max(speed, (#m.text - m.shown) * 2)
                 while m.budget >= 1 and m.shown < #m.text do
                     m.shown = nextChar(m.text, m.shown)
                     m.budget = m.budget - 1
@@ -181,14 +183,14 @@ local function merge(tab, snap, live)
             c.messages[#c.messages + 1] = cur
         end
         cur.role, cur.text, cur.done = m.role, m.text or "", m.done
-        if not live or cur.role ~= "assistant" or not visible then cur.shown = #cur.text end
+        if not live or cur.role ~= "assistant" or not visible or ns.settings.get("typing") == "instant" then cur.shown = #cur.text end
         cur.shown = math.min(cur.shown, #cur.text)
         capture(cur)
         if cur.done and not cur.announced then
             cur.announced = true
             if cur.role == "assistant" and not visible then c.unread = true end
             -- With the window closed, finished replies show up as a whisper instead.
-            if cur.role == "assistant" and not ns.ui.isShown() then
+            if cur.role == "assistant" and not ns.ui.isShown() and ns.settings.get("whisper") then
                 -- wai's own links (waypoints) only work inside the wai window.
                 local text = ns.links.render(cur.text):gsub("|Hwai:.-|h(.-)|h", "%1")
                 local name = #tabs().list > 1 and (" (" .. findTab(tab).name .. ")") or ""
@@ -228,6 +230,7 @@ end
 local function mergeSlot(slot)
     if type(slot) ~= "table" or slot.who ~= who then return end
     if slot.beat ~= lastBeat then lastBeat, lastBeatAt = slot.beat, GetTime() end
+    contactAt = GetTime()
     updateAvailable = slot.update and slot.update.version
     for tab, snap in pairs(slot.chats or {}) do merge(tab, snap, true) end
     ns.modules.sync(slot.modules)
@@ -382,6 +385,11 @@ end
 function core.requestVideo(kind, query)
     shots[#shots + 1] = encode({ kind = "video", text = kind .. ":" .. query })
     shootNext()
+end
+
+-- Seconds since the bridge was last heard from this session, or nil.
+function core.lastContact()
+    return contactAt and (GetTime() - contactAt)
 end
 
 -- In-game /update: the bridge updates wai and reports progress as status lines in this chat.

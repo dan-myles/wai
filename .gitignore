@@ -2,3 +2,13 @@
 .env
 .env.*
 !.env.example
+node_modules/
+bridge/.state.json
+addon/Data.lua
+addon/Generated.lua
+*.tmp
+bridge/bridge.log
+addon/ui/
+addon/ModuleDefs.lua
+bridge/config.json
+bridge/bin/

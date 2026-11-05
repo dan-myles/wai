@@ -15,6 +15,7 @@ import {
 import { join } from "node:path"
 
 import { extractAddon } from "./addon-files"
+import { AGENTS, INSTALL_HINTS, NAMES, agentPath, currentAgent } from "./agent"
 import {
   ADDON_DIR,
   COMPILED,
@@ -116,13 +117,14 @@ export async function install(args: string[]) {
     )
   }
   await mkdir(HOME, { recursive: true })
-  const claudePath =
-    config.claudePath && existsSync(config.claudePath)
-      ? config.claudePath
-      : (Bun.which("claude") ?? undefined)
+  // The bridge runs at login with a bare PATH, so remember where each agent CLI lives now.
+  const locate = (recorded: string | undefined, name: string) =>
+    recorded && existsSync(recorded) ? recorded : (Bun.which(name) ?? undefined)
+  const claudePath = locate(config.claudePath, "claude")
+  const codexPath = locate(config.codexPath, "codex")
   await writeFile(
     CONFIG_FILE,
-    JSON.stringify({ ...config, claudePath, wowDir }, null, 2),
+    JSON.stringify({ ...config, claudePath, codexPath, wowDir }, null, 2),
   )
 
   const { changed } = await extractAddon()
@@ -144,9 +146,13 @@ export async function install(args: string[]) {
     )
   }
   console.log(`bridge ${await register()}`)
-  if (!claudePath) {
+  if (!claudePath && !codexPath) {
     console.log(
-      "Claude CLI not found. Install it (https://claude.ai/install), sign in by running `claude` once, then run wai install again.",
+      `No agent found. wai talks through Claude Code or Codex: ${INSTALL_HINTS.claude} (or for Codex, ${INSTALL_HINTS.codex}), then run wai install again.`,
+    )
+  } else {
+    console.log(
+      `agent ${NAMES[currentAgent()]} (change it in /settings or with wai agent)`,
     )
   }
   console.log("Done. Restart WoW, then type /wai in game.")
@@ -180,7 +186,6 @@ export async function uninstall(args: string[]) {
 // `wai doctor`: everything that has to be true for wai to work.
 export async function doctor() {
   const checks: [string, boolean, string][] = []
-  const config = readConfig()
   const wowDir = findWowDir()
   const record = await readFile(INSTALL_RECORD, "utf-8")
     .then(JSON.parse)
@@ -214,16 +219,20 @@ export async function doctor() {
         : `${SLOT_COUNT} + ${MOD_SLOT_COUNT} + ${VID_SLOT_COUNT}`,
     ])
   }
-  const claude = config.claudePath ?? Bun.which("claude")
-  const claudeVersion = claude
-    ? Bun.spawnSync([claude, "--version"]).stdout.toString().trim()
-    : ""
-  checks.push([
-    "Claude CLI",
-    !!claudeVersion,
-    claudeVersion ||
-      "install it from https://claude.ai/install, then sign in with `claude`",
-  ])
+  // One agent is enough; the one that answers must be installed.
+  const answering = currentAgent()
+  for (const agent of AGENTS) {
+    const path = agentPath(agent)
+    const version = path
+      ? Bun.spawnSync([path, "--version"]).stdout.toString().trim()
+      : ""
+    const using = agent === answering ? " (answering)" : ""
+    checks.push([
+      `${NAMES[agent]} CLI`,
+      !!version || agent !== answering,
+      version ? `${version}${using}` : `not installed: ${INSTALL_HINTS[agent]}`,
+    ])
+  }
   const pid = await bridgePid()
   checks.push([
     "bridge running",

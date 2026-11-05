@@ -24,6 +24,9 @@ export const INSTALL_RECORD = join(HOME, "install.json")
 export interface Config {
   wowDir?: string
   claudePath?: string
+  codexPath?: string
+  // Which agent answers: "claude" | "codex" (agent.ts). Unset means whichever is installed.
+  agent?: string
   // Opt-in anonymous error reports (docs/TELEMETRY.md); undefined until the player chooses.
   telemetry?: boolean
   telemetryUrl?: string

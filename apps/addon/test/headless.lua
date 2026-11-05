@@ -571,6 +571,30 @@ now = now + 2; __ticker.fn(); tick(0.01)
 assert(tabNamed(titled.id) == "My route", "manual name kept")
 print("tab titles ok")
 
+-- Agents: the header says who answers. /settings switches with a ping carrying "a=codex", and the
+-- bridge's snapshots have the final say (it refuses an agent that isn't installed).
+ns.core.switchTab("main"); ns.ui.show(); tick(0.01)
+assert(ns.core.agent() == "claude" and #texts("powered by Claude") == 1, "Claude by default")
+if not WaiSettings:IsShown() then ns.commands.run("/settings") end
+clickText("Codex")
+parts = fullPayload()
+assert(parts[5]:find(";a=codex$"), "the switch carries the agent: " .. parts[5])
+assert(ns.core.agent() == "codex" and #texts("powered by Codex") == 1, "header follows right away")
+fire("SCREENSHOT_SUCCEEDED")
+slotData.default = { who = "Backshot-Forever", beat = 90, agent = "codex", chats = { main = { ackSeq = WaiDB.seq, busy = false, messages = {
+  { id = 60, role = "status", text = "Codex answers from now on.", done = true, at = 60 },
+} } } }
+now = now + 2; __ticker.fn(); tick(0.01)
+assert(#texts("Codex answers from now on") == 1, "the bridge confirms in chat")
+SlashCmdList.WAI("hi codex")
+parts = fullPayload()
+assert(not parts[5]:find("a="), "ordinary messages don't carry the agent: " .. parts[5])
+fire("SCREENSHOT_SUCCEEDED")
+slotData.default = { who = "Backshot-Forever", beat = 91, agent = "claude", chats = { main = { ackSeq = WaiDB.seq, busy = false, messages = {} } } }
+now = now + 2; __ticker.fn(); tick(1.1, 1)
+assert(ns.core.agent() == "claude" and #texts("powered by Claude") == 1, "the bridge's answer wins")
+print("agents ok")
+
 -- Suggestions while typing.
 subjectInput:SetText("/re")
 assert(#texts("^/reload") >= 1 and #texts("^/remember") == 0, "suggestions")

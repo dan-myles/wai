@@ -56,6 +56,12 @@ local SECTIONS = {
         title = "GENERAL",
         items = {
             {
+                kind = "segmented", label = "Agent", hint = "Who answers; chats carry over",
+                options = { { "claude", "Claude" }, { "codex", "Codex" } },
+                get = function() return ns.core.agent() end,
+                set = function(name) ns.core.setAgent(name) end,
+            },
+            {
                 kind = "segmented", key = "typing", label = "Typing speed", hint = "How replies appear",
                 options = { { "instant", "Instant" }, { "fast", "Fast" }, { "normal", "Normal" } },
             },
@@ -199,6 +205,8 @@ local function build()
         t = t + elapsed
         if t > 1 then
             t = 0
+            -- Some values come from the bridge (the agent), so they can change while the panel is open.
+            for _, row in ipairs(rows) do row:Refresh() end
             refreshAbout()
         end
     end)
@@ -219,7 +227,7 @@ function settings.showTelemetry()
     local on = settings.get("telemetry") == true
     local lines = {
         "|cffffd100Error reports|r  " .. (on and "on" or "off"),
-        "|cff9298a3Each report holds an event type (lua_error, stalled, claude_error, ...), a short detail with your character name and realm removed, the wai version, OS, client build and a random install id. Never your chats, quests or names. Off unless you turn it on. In a terminal, `wai telemetry show` lists everything queued and sent.|r",
+        "|cff9298a3Each report holds an event type (lua_error, stalled, claude_error, codex_error, ...), a short detail with your character name and realm removed, the wai version, OS, client build and a random install id. Never your chats, quests or names. Off unless you turn it on. In a terminal, `wai telemetry show` lists everything queued and sent.|r",
     }
     local pending = ns.core.pendingReports()
     lines[#lines + 1] = ("|cffffd100Waiting to send|r  %d"):format(#pending)

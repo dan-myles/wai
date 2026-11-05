@@ -12,6 +12,14 @@ import {
 } from "node:fs"
 import { mkdir, readFile } from "node:fs/promises"
 
+import {
+  AGENTS,
+  INSTALL_HINTS,
+  NAMES,
+  agentPath,
+  currentAgent,
+  isAgent,
+} from "./agent"
 import { HOME, LOG_FILE, PID_FILE, writeConfig } from "./files"
 import { doctor, install, uninstall } from "./install"
 import { bridgePid, restart } from "./service"
@@ -19,7 +27,7 @@ import { enabled, endpoint, flush, history, setConsent } from "./telemetry"
 import { update } from "./update"
 import { VERSION } from "./version"
 
-const HELP = `wai ${VERSION}: Claude inside World of Warcraft: Forever
+const HELP = `wai ${VERSION}: Claude or Codex inside World of Warcraft: Forever
 
 Usage: wai <command>
 
@@ -28,6 +36,7 @@ Usage: wai <command>
   update                   update wai to the latest release (alias: upgrade)
   status                   check that everything wai needs is in place (alias: doctor)
   logs [-f]                show the bridge log, or follow it
+  agent [claude|codex]     show or choose which agent answers (also /settings in game)
   uninstall [--purge]      remove wai from WoW and login items (--purge also deletes chats and settings)
   telemetry [on|off|show|url <url>]
                            anonymous error reports: off until you turn them on (see docs/TELEMETRY.md)
@@ -115,6 +124,26 @@ async function telemetry(args: string[]) {
   )
 }
 
+// The running bridge reads the choice on every message, so no restart is needed.
+function agent(args: string[]) {
+  const [choice] = args
+  if (choice) {
+    if (!isAgent(choice)) {
+      throw new Error(`unknown agent "${choice}"; use ${AGENTS.join(" or ")}`)
+    }
+    if (!agentPath(choice)) {
+      throw new Error(
+        `${NAMES[choice]} isn't installed: ${INSTALL_HINTS[choice]}`,
+      )
+    }
+    writeConfig({ agent: choice })
+  }
+  for (const a of AGENTS) {
+    const mark = a === currentAgent() ? "●" : agentPath(a) ? "○" : "✗"
+    console.log(`${mark} ${a}${agentPath(a) ? "" : " (not installed)"}`)
+  }
+}
+
 async function logs(follow: boolean) {
   const text = await readFile(LOG_FILE, "utf-8").catch(() => "")
   console.log(text.split("\n").slice(-80).join("\n"))
@@ -167,6 +196,10 @@ try {
     }
     case "telemetry": {
       await telemetry(args)
+      break
+    }
+    case "agent": {
+      agent(args)
       break
     }
     case "uninstall": {

@@ -1,44 +1,9 @@
-import { readFile } from "node:fs/promises"
-import { basename, resolve } from "node:path"
+import type { OnUpdate, Reply } from "./agent"
 
-import embeddedSkill from "../SKILL.md" with { type: "text" }
-import { ADDON_DIR, COMPILED, readConfig } from "./files"
+// Claude Code as a wai agent: `claude -p` with stream-json, so text streams token by token.
+import { basename } from "node:path"
 
-// Long tasks (building UI, research) can legitimately run for a while.
-const TIMEOUT_MS = 30 * 60_000
-
-// The wai skill: what the agent knows and can do. In a source checkout it's read on every call so
-// edits apply immediately; the compiled binary carries its own copy.
-const SKILL_FILE = resolve(import.meta.dir, "../SKILL.md")
-const skill = async () =>
-  COMPILED
-    ? embeddedSkill
-    : await readFile(SKILL_FILE, "utf-8").catch(() => embeddedSkill)
-// Services started at login (launchd, Task Scheduler) have a bare PATH, so the installer records it.
-const CLAUDE = process.env.CLAUDE_BIN ?? readConfig().claudePath ?? "claude"
-
-export interface Reply {
-  text: string
-  sessionId: string
-}
-// text: the reply so far; activity: what Claude is doing right now when it isn't writing text.
-type OnUpdate = (text: string, activity?: string) => void
-
-export async function ask(
-  prompt: string,
-  sessionId: string | undefined,
-  onUpdate: OnUpdate,
-): Promise<Reply> {
-  try {
-    return await run(prompt, sessionId, onUpdate)
-  } catch (error) {
-    // A stale or missing session shouldn't wedge the chat; start a fresh one.
-    if (!sessionId) {
-      throw error
-    }
-    return run(prompt, undefined, onUpdate)
-  }
-}
+import { requirePath, skill, streamLines } from "./agent"
 
 interface ToolInput {
   query?: string
@@ -101,13 +66,13 @@ export function describe(name: string, input: ToolInput = {}): string {
   }
 }
 
-async function run(
+export async function runClaude(
   prompt: string,
   sessionId: string | undefined,
   onUpdate: OnUpdate,
 ): Promise<Reply> {
   const args = [
-    CLAUDE,
+    requirePath("claude"),
     "-p",
     prompt,
     "--output-format",
@@ -125,15 +90,6 @@ async function run(
   if (sessionId) {
     args.push("--resume", sessionId)
   }
-
-  const proc = Bun.spawn(args, {
-    cwd: ADDON_DIR,
-    stderr: "pipe",
-    stdin: "ignore",
-    stdout: "pipe",
-  })
-  const timer = setTimeout(() => proc.kill(), TIMEOUT_MS)
-  const stderr = new Response(proc.stderr).text()
 
   let text = ""
   let activity: string | undefined = "Thinking"
@@ -191,23 +147,11 @@ async function run(
     onUpdate(text, activity)
   }
 
-  const decoder = new TextDecoder()
-  let buf = ""
-  for await (const chunk of proc.stdout) {
-    buf += decoder.decode(chunk, { stream: true })
-    let nl
-    while ((nl = buf.indexOf("\n")) >= 0) {
-      handle(buf.slice(0, nl))
-      buf = buf.slice(nl + 1)
-    }
-  }
-  handle(buf)
-  const code = await proc.exited
-  clearTimeout(timer)
+  const { code, stderr } = await streamLines(args, handle)
 
   if (code !== 0 || !result || result.is_error) {
     throw new Error(
-      (result?.result || (await stderr) || `claude exited ${code}`)
+      (result?.result || stderr || `claude exited ${code}`)
         .trim()
         .slice(0, 300),
     )

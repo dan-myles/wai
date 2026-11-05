@@ -1,4 +1,4 @@
--- wai: chat with Claude from inside WoW, without reloading. This file is state + transport; ui.lua draws.
+-- wai: chat with Claude or Codex from inside WoW, without reloading. This file is state + transport; ui.lua draws.
 -- Out: each message is painted as a bit grid and captured with Screenshot(); the bridge decodes the file.
 -- In:  the bridge writes snapshots into load-on-demand "slot" addons; loading one reads it from disk live.
 -- WaiDB.outbox (SavedVariables) and Data.lua (WaiData) are the reload fallback and history.
@@ -29,6 +29,7 @@ local notice
 local nextSlot, poll, pollTicker = 1, nil, nil
 local lastBeat, lastBeatAt = nil, 0
 local updateAvailable -- a newer wai release the bridge found
+local agent -- which agent the bridge answers with ("claude" | "codex")
 local contactAt -- when a live snapshot from the bridge last arrived
 local grid, gridBlocks, shots, shooting, savedFormat = nil, nil, {}, nil, nil
 local localId = 0
@@ -262,6 +263,7 @@ local function mergeSlot(slot)
     if slot.beat ~= lastBeat then lastBeat, lastBeatAt = slot.beat, GetTime() end
     contactAt = GetTime()
     updateAvailable = slot.update and slot.update.version
+    agent = slot.agent or agent
     for tab, snap in pairs(slot.chats or {}) do merge(tab, snap, true) end
     ns.modules.sync(slot.modules)
     ns.video.sync(slot.video)
@@ -343,13 +345,15 @@ local function buildGrid()
     grid:Hide()
 end
 
--- The player's telemetry choice and the client build, plus queued reports if they opted in.
-local function telemetryTail()
+-- The player's telemetry choice and the client build (and an agent switch, on the ping that asks
+-- for it), plus queued reports if they opted in.
+local function flagsTail(item)
     local choice = ns.settings.get("telemetry")
     local flags = choice == true and "t=1" or choice == false and "t=0" or ""
     local version, build
     if GetBuildInfo then version, build = GetBuildInfo() end
     if version then flags = flags .. ";c=" .. version .. "." .. tostring(build) end
+    if item.agent then flags = flags .. ";a=" .. item.agent end
     if choice ~= true then return "\0" .. flags .. "\0" end
     local lines = table.concat(reports, "\n")
     reports = {}
@@ -357,9 +361,9 @@ local function telemetryTail()
 end
 
 -- Header: "WAI", version, seq(2), slot(2), kind, length(2); then
--- text \0 context \0 who \0 tab \0 telemetry flags \0 telemetry reports.
+-- text \0 context \0 who \0 tab \0 flags \0 telemetry reports.
 local function encode(item)
-    local tail = "\0" .. who .. "\0" .. (item.tab or activeTab()) .. telemetryTail()
+    local tail = "\0" .. who .. "\0" .. (item.tab or activeTab()) .. flagsTail(item)
     local payload = (item.text or "") .. "\0" .. (item.ctx or "")
     payload = payload:sub(1, CAPACITY - HEADER_BYTES - #tail) .. tail
     local seq, slot = item.seq or 0, nextSlot
@@ -447,6 +451,22 @@ function core.requestUpdate()
     local c = chatFor(activeTab())
     c.busy = true -- keep polling until the bridge reports back
     shots[#shots + 1] = encode({ kind = "update" })
+    notice = nil
+    shootNext()
+    changed()
+end
+
+function core.agent()
+    return agent or "claude"
+end
+
+-- /settings: the bridge switches agents and confirms with a note in this chat.
+function core.setAgent(name)
+    if name == core.agent() then return end
+    agent = name -- shown right away; the bridge's next snapshot has the final say
+    local c = chatFor(activeTab())
+    c.busy = true -- keep polling until the bridge's note arrives
+    shots[#shots + 1] = encode({ kind = "ping", agent = name })
     notice = nil
     shootNext()
     changed()
@@ -576,6 +596,7 @@ function core.view()
         full = nextSlot > SLOT_COUNT,
         modulesNeedReload = ns.modules.needsReload(),
         update = updateAvailable,
+        agent = core.agent(),
         -- Ask about error reports once, after the player has used wai a little.
         consent = ns.settings.get("telemetry") == nil and #c.messages > 0,
         tabs = core.tabs(),
@@ -598,6 +619,7 @@ events:SetScript("OnEvent", guard(function()
     local data = WaiData or {}
     lastBeat = data.beat
     updateAvailable = data.update and data.update.version
+    agent = data.agent
     local prefix = who .. "#"
     for key, snap in pairs(data.chats or {}) do
         if key:sub(1, #prefix) == prefix then merge(key:sub(#prefix + 1), snap, false) end

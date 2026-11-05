@@ -1,8 +1,8 @@
 ## Interface: 16001
 ## Title: wai
-## Notes: Talk to Claude from inside the game. /wai
+## Notes: Talk to Claude or Codex from inside the game. /wai
 ## Author: dan-myles
-## Version: 0.6.0
+## Version: 0.7.0
 ## Category: wai
 ## SavedVariables: WaiDB
 ## SavedVariablesPerCharacter: WaiCharDB

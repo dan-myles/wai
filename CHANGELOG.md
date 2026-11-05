@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.0 (2026-11-05)
+
+Codex support. wai can now answer with Claude Code or OpenAI's Codex CLI.
+
+- **Pick the agent** in `/settings` → General → Agent, or with `wai agent claude|codex` in a terminal.
+  With no choice made, wai uses whichever CLI is installed (Claude first).
+- **Switching mid-chat** keeps the conversation: each chat starts a new session with the new agent
+  and hands it the recent messages. The bridge confirms the switch in chat, and refuses an agent
+  that isn't installed.
+- Codex gets everything Claude does: the wai skill on every prompt, web search, live activity
+  ("Searching the web for ..."), reply markup, and UI modules (it may write only inside the addon
+  folder).
+- The window header says who's answering. `wai install` records where both CLIs live, and
+  `wai status` checks both.
+- Telemetry: a new `codex_error` event.
+
 ## 0.6.0 (2026-11-05)
 
 Tab titles that keep up with the conversation.

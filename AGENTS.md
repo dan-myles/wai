@@ -1,6 +1,6 @@
 # wai Agents.md
 
-wai puts Claude inside World of Warcraft: Forever as a native addon. A Bun bridge talks to the
+wai puts Claude (or Codex) inside World of Warcraft: Forever as a native addon. A Bun bridge talks to the
 game through files only: screenshots out, load-on-demand "slot" addons in. See README.md for how
 it works and docs/DESIGN.md for the visual language.
 
@@ -29,7 +29,8 @@ it works and docs/DESIGN.md for the visual language.
   load has to be a pre-created file. New addon files need a full client restart.
 - The client has secret values: guard unit data with `issecretvalue` + `pcall` (see `context.lua`).
   The combat log is closed to addons; use `C_DamageMeter` and `C_DeathRecap`.
-- Claude's capabilities live in `apps/cli/SKILL.md`, injected into every prompt. Reply markup
+- Agents live in `apps/cli/src/agent.ts` (shared), `claude.ts` and `codex.ts`; each chat's session
+  belongs to one agent. The agent's capabilities live in `apps/cli/SKILL.md`, injected into every prompt. Reply markup
   (`[[item:..]]`, `[[setway:..]]`, `[[remember:..]]`...) is rendered and acted on by `links.lua` and `wai.lua`.
 - Telemetry is opt-in and anonymous. Never add a field to reports without updating
   docs/TELEMETRY.md and the collector's schema, and never send chat text or names.

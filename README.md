@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="wai: Claude, inside World of Warcraft: Forever" width="100%">
+  <img src="docs/assets/banner.svg" alt="wai: Claude or Codex, inside World of Warcraft: Forever" width="100%">
 </p>
 
 <p align="center">
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <b>Ask Claude anything without leaving Azeroth.</b><br>
+  <b>Ask Claude or Codex anything without leaving Azeroth.</b><br>
   A native addon with its own chat window, waypoint arrow and live UI.<br>
   No overlay, no reloads, no other addons, and nothing that plays the game for you.
 </p>
@@ -36,7 +36,7 @@
     <td width="50%" valign="top">
       <h4>💬 A chat window that belongs in WoW</h4>
       Dark slate, thin gold lines, Friz Quadrata titles. Replies stream in with a typewriter,
-      and a live line shows what Claude is doing ("Searching the web for …").
+      and a live line shows what the agent is doing ("Searching the web for …").
     </td>
     <td width="50%" valign="top">
       <h4>🔗 Replies you can click</h4>
@@ -48,24 +48,36 @@
     <td valign="top">
       <h4>🎯 Ask about anything</h4>
       Alt-click an item, a quest, your target's portrait or a name in chat. Quest dialogs get
-      an <i>Ask wai</i> button. Claude sees your character, zone, quests, recent chat and fights.
+      an <i>Ask wai</i> button. wai sees your character, zone, quests, recent chat and fights.
     </td>
     <td valign="top">
       <h4>🗂️ Parallel chats</h4>
-      Up to 8 tabs per character, each its own Claude session. Claude keeps tab titles
+      Up to 8 tabs per character, each its own agent session. wai keeps tab titles
       current; a name you give a tab sticks.
     </td>
   </tr>
   <tr>
     <td valign="top">
       <h4>🧩 UI on request</h4>
-      "Show me a tracker for…" and Claude writes a module that appears in game within seconds.
+      "Show me a tracker for…" and wai writes a module that appears in game within seconds.
       No reload.
     </td>
     <td valign="top">
       <h4>🧠 Memory and actions</h4>
-      Each character has its own memory. Claude saves notes, forgets them and sets the arrow on
+      Each character has its own memory. wai saves notes, forgets them and sets the arrow on
       its own, with no commands to learn.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <h4>🤝 Claude or Codex</h4>
+      Pick who answers in <code>/settings</code>. Switch mid-chat and the conversation comes
+      along: the new agent gets the recent messages.
+    </td>
+    <td valign="top">
+      <h4>🔒 Private by default</h4>
+      Everything runs on your machine through your own CLI login. Error reports are off unless
+      you opt in, and never include chats or names.
     </td>
   </tr>
   <tr>
@@ -84,7 +96,8 @@
 
 ## Install
 
-You need **WoW: Forever** and the [Claude CLI](https://claude.ai/install), signed in once with `claude`.
+You need **WoW: Forever** and an agent CLI, signed in once:
+[Claude Code](https://claude.ai/install) (`claude`) or [Codex](https://github.com/openai/codex) (`npm install -g @openai/codex`, then `codex`). Have both? Pick in `/settings`.
 
 **macOS**
 
@@ -128,7 +141,7 @@ gh api repos/dan-myles/wai/contents/install.sh -H "Accept: application/vnd.githu
 |---|---|
 | `/help` | what wai can do |
 | `/new` | start a fresh conversation in this tab |
-| `/settings` | typing speed, whisper replies, killstreaks, privacy, window positions (or the ⚙ in the header) |
+| `/settings` | agent (Claude or Codex), typing speed, whisper replies, killstreaks, privacy, window positions (or the ⚙ in the header) |
 | `/fun` | toggles and test buttons for TikTok mode, killstreaks and video |
 | `/update` | update wai without leaving the game |
 | `/reload` | reload the UI |
@@ -154,7 +167,7 @@ flowchart LR
         bridge["wai bridge"]
         slots[("AddOns/wai_slotNNN")]
     end
-    claude["Claude Code<br/>(claude -p, streaming)"]
+    claude["Claude Code or Codex<br/>(headless, streaming)"]
 
     addon -- "paints a bit grid,<br/>Screenshot()" --> tga
     tga -- "decode, delete" --> bridge
@@ -165,9 +178,9 @@ flowchart LR
 
 - **Out:** each message is painted as a 128×64 grid of coloured blocks in a magenta frame, 3 bits per block (one per colour channel). The addon takes a lossless TGA screenshot; the bridge decodes it and deletes the file.
 - **In:** 500 load-on-demand `wai_slotNNN` addons. Loading one reads its file from disk at that moment, so the bridge writes snapshots into the slots the addon will load next. A heartbeat and re-sync keep long replies flowing.
-- **Live UI and video** use the same trick with their own pools: 40 module slots for UI Claude writes, and 200 slots for 80×45 pixel video frames.
+- **Live UI and video** use the same trick with their own pools: 40 module slots for UI the agent writes, and 200 slots for 80×45 pixel video frames.
 - **Fallback:** `WaiDB.outbox` flushes on reload and `Data.lua` keeps history. Sequence numbers make resends harmless.
-- **The agent:** every prompt carries [`apps/cli/SKILL.md`](apps/cli/SKILL.md), which teaches Claude the game, the reply markup (`[[item:…]]`, `[[setway:…]]`, `[[remember:…]]`…) and how to build UI.
+- **The agent:** every prompt carries [`apps/cli/SKILL.md`](apps/cli/SKILL.md), which teaches the agent the game, the reply markup (`[[item:…]]`, `[[setway:…]]`, `[[remember:…]]`…) and how to build UI.
 
 > [!NOTE]
 > wai reads game state, shows information and builds UI. It never automates gameplay.
@@ -180,6 +193,7 @@ flowchart LR
 | `wai update` | update to the latest release |
 | `wai status` | check everything wai needs (alias `doctor`) |
 | `wai logs [-f]` | show or follow the bridge log |
+| `wai agent [claude\|codex]` | show or choose which agent answers |
 | `wai telemetry [on\|off\|show\|url <url>]` | anonymous error reports |
 | `wai uninstall [--purge]` | remove wai from WoW and login items |
 

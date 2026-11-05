@@ -464,6 +464,7 @@ end
 function ui.update()
     if not frame or not frame:IsShown() then return end
     local view = ns.core.view()
+    frame.subtitle:SetText(view.agent == "codex" and "Your companion, powered by Codex" or "Your companion, powered by Claude")
     renderTabs(view.tabs)
     setBanner(view)
     setAttachment()
@@ -632,6 +633,7 @@ local function buildHeader()
     local subtitle = T.label(header, "regular", 11, C.muted)
     subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
     subtitle:SetText("Your companion, powered by Claude")
+    frame.subtitle = subtitle
 
     local close = T.button(header, "ghost", nil, { width = 26, height = 26, radius = 13, onClick = function() frame:Hide() end })
     close:SetPoint("RIGHT", -12, 0)

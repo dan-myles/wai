@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { exists, mkdir, rename, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join, resolve } from "node:path"
@@ -24,6 +24,11 @@ export const INSTALL_RECORD = join(HOME, "install.json")
 export interface Config {
   wowDir?: string
   claudePath?: string
+  // Opt-in anonymous error reports (docs/TELEMETRY.md); undefined until the player chooses.
+  telemetry?: boolean
+  telemetryUrl?: string
+  // A random id so reports from one install can be grouped; not tied to any account.
+  installId?: string
 }
 
 export function readConfig(): Config {
@@ -32,6 +37,14 @@ export function readConfig(): Config {
   } catch {
     return {}
   }
+}
+
+export function writeConfig(changes: Partial<Config>) {
+  mkdirSync(HOME, { recursive: true })
+  writeFileSync(
+    CONFIG_FILE,
+    JSON.stringify({ ...readConfig(), ...changes }, null, 2),
+  )
 }
 
 export const WOW_CANDIDATES =

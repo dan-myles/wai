@@ -10,11 +10,24 @@
     },
     "apps/addon": {
       "name": "@wai/addon",
-      "version": "0.2.0",
+      "version": "0.4.0",
     },
     "apps/cli": {
       "name": "@wai/cli",
-      "version": "0.2.0",
+      "version": "0.4.0",
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "@wai/oxfmt-config": "workspace:*",
+        "@wai/oxlint-config": "workspace:*",
+        "@wai/tsconfig": "workspace:*",
+        "oxfmt": "catalog:",
+        "oxlint": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
+    "apps/telemetry": {
+      "name": "@wai/telemetry",
+      "version": "0.5.0",
       "devDependencies": {
         "@types/bun": "catalog:",
         "@wai/oxfmt-config": "workspace:*",
@@ -186,6 +199,8 @@
     "@wai/oxfmt-config": ["@wai/oxfmt-config@workspace:tooling/oxfmt"],
 
     "@wai/oxlint-config": ["@wai/oxlint-config@workspace:tooling/oxlint"],
+
+    "@wai/telemetry": ["@wai/telemetry@workspace:apps/telemetry"],
 
     "@wai/tsconfig": ["@wai/tsconfig@workspace:tooling/typescript"],
 

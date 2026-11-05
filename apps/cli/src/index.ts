@@ -26,6 +26,7 @@ import {
 import { parseSavedVariables, toLua } from "./lua"
 import { relaunchSelf } from "./service"
 import { IncompleteError, decode, parseTga } from "./shot"
+import { record, setClient, setConsent } from "./telemetry"
 import { availableUpdate, update } from "./update"
 import { CHUNK_FRAMES, chunkLua, fetchVideo } from "./video"
 
@@ -112,6 +113,12 @@ let draining = false
 let beat = 0 // bumps on every publish so the addon can tell a live bridge from a stalled one
 // Where the addon started polling: slot k0 at time `start`, for character `who`.
 let schedule: { k0: number; start: number; who: string } | undefined
+
+// Opt-in error reports; `who` lets the scrubber strip the character's name and realm.
+const reportError = (event: string, error: unknown, who = "") => {
+  const detail = error instanceof Error ? error.message : String(error)
+  record(event, detail, [who, ...who.split("-")]).catch(() => null)
+}
 
 const chat = (key: string) =>
   (state.chats[key] ??= { lastSeq: 0, messages: [] })
@@ -286,6 +293,7 @@ async function playVideo(who: string, kind: string, query: string) {
       ),
     })
     console.error("wai: video failed", error)
+    reportError("video_error", error, who)
   } finally {
     videosLoading--
   }
@@ -337,9 +345,10 @@ function publish() {
     )
     await writeSlots()
   }
-  return (writing = writing
-    .then(write, write)
-    .catch((error) => console.error("wai: publish failed", error)))
+  return (writing = writing.then(write, write).catch((error) => {
+    console.error("wai: publish failed", error)
+    reportError("publish_error", error)
+  }))
 }
 
 let streamTimer: Timer | undefined
@@ -435,6 +444,7 @@ async function drain() {
       reply.role = "system"
       reply.text = `Error: ${error instanceof Error ? error.message : String(error)}`
       console.error(`wai: seq ${item.seq} failed`, error)
+      reportError("claude_error", error, item.who)
     }
     reply.done = true
     c.activity = undefined
@@ -484,12 +494,31 @@ async function runUpdate(who: string, tab: string) {
     await report(
       `Update failed: ${error instanceof Error ? error.message : String(error)}`,
     )
+    reportError("update_error", error, who)
   }
   inFlight = undefined
   c.activity = undefined
   await publish()
 }
 const reading = new Set<string>()
+
+// Every message carries the player's telemetry choice ("t=1"/"t=0"), the client build ("c=…")
+// and, if they opted in, the addon's own error reports, one "event<TAB>detail" per line.
+function applyFlags(flags: string, who: string, reports: string) {
+  const values = new Map(
+    flags.split(";").map((kv) => kv.split("=") as [string, string]),
+  )
+  if (values.get("t") === "1" || values.get("t") === "0") {
+    setConsent(values.get("t") === "1")
+  }
+  if (values.get("c")) {
+    setClient(values.get("c")!)
+  }
+  for (const line of reports.split("\n").filter(Boolean)) {
+    const [event = "lua_error", ...rest] = line.split("\t")
+    record(event, rest.join(" "), [who, ...who.split("-")]).catch(() => null)
+  }
+}
 
 async function readShot(path: string) {
   if (reading.has(path)) {
@@ -505,7 +534,9 @@ async function readShot(path: string) {
           return
         } // a real screenshot, leave it alone
         await unlink(path)
-        const [text, ctx, who = "", tab = "main"] = shot.payload.split("\0")
+        const [text, ctx, who = "", tab = "main", flags = "", reports = ""] =
+          shot.payload.split("\0")
+        applyFlags(flags, who, reports)
         if (KINDS[shot.kind] === "update") {
           schedule = { k0: shot.slot, start: Date.now(), who }
           await runUpdate(who, tab)
@@ -546,6 +577,7 @@ async function readShot(path: string) {
     }
   } catch (error) {
     console.error(`wai: failed to read ${path}`, error)
+    reportError("decode_error", error)
   } finally {
     reading.delete(path)
   }
@@ -606,9 +638,10 @@ async function scan() {
 
 let scanning = Promise.resolve()
 const rescan = () =>
-  (scanning = scanning
-    .then(scan)
-    .catch((error) => console.error("wai: scan failed", error)))
+  (scanning = scanning.then(scan).catch((error) => {
+    console.error("wai: scan failed", error)
+    reportError("scan_error", error)
+  }))
 
 let debounce: Timer | undefined
 watch(ACCOUNTS_DIR, { recursive: true }, (_, filename) => {

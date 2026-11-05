@@ -2,17 +2,13 @@
 
 Ideas we're not working on yet. Each needs a feasibility check first.
 
-## Opt-in telemetry
-Anonymous, opt-in usage and error reporting (off by default) to learn what breaks in the field: bridge errors, decode failures, stalled streams, Lua errors, client version and OS.
-- Turned on and off with a toggle in the `/settings` menu (built in v0.3.0), plus a consent prompt the first time. A "see what's sent" view lives there too.
-- Never chat content or character names.
-
 ## Auto-updating tab titles
 Tabs are named once, from the first message ("best leveling route fo"). Instead, keep the title current as the conversation moves on.
 - Claude proposes a short title (2–4 words, e.g. "Hunter leveling route") on the first reply and refreshes it when the topic clearly shifts, through a `[[title:...]]` markup token (or a cheap separate summary call on the bridge).
 - Never overwrite a title the player renamed by hand (`auto` flag already tracks that). Animate the change subtly in the tab strip.
 
 ## Done
+- **Opt-in telemetry (v0.5.0):** off by default; a one-time consent banner and a Privacy section in `/settings` (switch plus "See what's sent"); scrubbed Lua errors and stalled streams from the addon plus bridge errors; `wai telemetry on|off|show|url`; and a validating collector in `apps/telemetry`. Documented in docs/TELEMETRY.md.
 - **Minimap button (v0.4.0):** wai's portrait on the minimap ring, built from wai's own primitives: left-click chat, right-click settings, shift-right-click fun, drag around the ring (angle saved), a status dot for working/unread, and a Settings toggle.
 - **Settings menu (v0.3.0):** `/settings` or the header gear opens a floating panel with grouped, data-driven settings: typing speed (new segmented control), whisper replies, killstreaks, reset window positions, and an About row with the version, bridge contact, Check for updates and Help. Later releases add their rows to `settings.SECTIONS`.
 - **Monorepo structure (v0.2.0):** syncfast's layout: Bun workspaces (`apps/cli`, `apps/addon`, `tooling/typescript|oxfmt|oxlint`) with a version catalog, Turborepo for checks, Task as the single entry point, mise pins, an `AGENTS.md` guide, oxfmt + oxlint (ultracite), and CI through a shared setup action.

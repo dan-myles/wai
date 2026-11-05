@@ -255,6 +255,10 @@ local function setBanner(view)
         tone = "info", text = "New UI from wai is ready. Reload to load it.", action = "Reload", run = ns.core.reload,
     } or view.notice or view.update and {
         tone = "info", text = ("wai %s is available."):format(view.update), action = "Update", run = ns.core.requestUpdate,
+    } or view.consent and {
+        tone = "info", text = "Help improve wai with anonymous error reports? Never chats or names.",
+        action = "Turn on", run = function() ns.settings.set("telemetry", true) end,
+        secondary = "No thanks", runSecondary = function() ns.settings.set("telemetry", false) end,
     }
     if not n then return banner:Hide() end
     local tone = TONES[n.tone] or TONES.info
@@ -270,6 +274,16 @@ local function setBanner(view)
         banner.action:Show()
     else
         banner.action:Hide()
+    end
+    banner.runSecondary = n.runSecondary
+    if n.secondary then
+        banner.secondary.label:SetText(n.secondary)
+        banner.secondary:SetWidth(math.ceil(banner.secondary.label:GetStringWidth()) + 18)
+        banner.secondary:Show()
+        banner.text:SetPoint("RIGHT", banner.secondary, "LEFT", -6, 0)
+    else
+        banner.secondary:Hide()
+        banner.text:SetPoint("RIGHT", banner.action, "LEFT", -10, 0)
     end
     banner:Show()
 end
@@ -669,8 +683,16 @@ local function buildBanner()
     banner.text = T.label(banner, "medium", 12, C.text)
     banner.text:SetPoint("LEFT", banner.icon, "RIGHT", 10, 0)
     banner.text:SetJustifyV("MIDDLE")
-    banner.action = T.button(banner, "gold", "Retry", { height = 26, radius = 6, size = 11, onClick = function() if banner.run then banner.run() end end })
+    banner.action = T.button(banner, "gold", "Retry", { height = 26, radius = 6, size = 11, onClick = function()
+        if banner.run then banner.run() end
+        ui.update()
+    end })
     banner.action:SetPoint("RIGHT", -7, 0)
+    banner.secondary = T.button(banner, "ghost", "No thanks", { height = 26, radius = 6, size = 11, padding = 16, onClick = function()
+        if banner.runSecondary then banner.runSecondary() end
+        ui.update()
+    end })
+    banner.secondary:SetPoint("RIGHT", banner.action, "LEFT", -4, 0)
     banner.text:SetPoint("RIGHT", banner.action, "LEFT", -10, 0)
     banner:Hide()
 end

@@ -34,8 +34,30 @@ local grid, gridBlocks, shots, shooting, savedFormat = nil, nil, {}, nil, nil
 local localId = 0
 local typer = CreateFrame("Frame")
 
+-- Error reports for opt-in telemetry (docs/TELEMETRY.md): event type and a scrubbed detail.
+local reports = {}
+
+-- Strips the character's name and realm from anything that might be reported.
+local function scrub(text)
+    text = tostring(text):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("[\r\n\t]", " ")
+    for _, name in ipairs({ who or "", UnitName and UnitName("player") or "", GetRealmName and GetRealmName() or "" }) do
+        if #name > 1 then text = text:gsub(name:gsub("%p", "%%%0"), "<name>") end
+    end
+    return text:sub(1, 280)
+end
+
+local function queueReport(event, detail)
+    if #reports >= 10 then return end
+    local line = event .. "\t" .. scrub(detail)
+    for _, r in ipairs(reports) do
+        if r == line then return end
+    end
+    reports[#reports + 1] = line
+end
+
 local function report(err)
     print("|cffd97757wai error:|r " .. tostring(err))
+    queueReport("lua_error", err)
 end
 core.report = report
 
@@ -212,6 +234,7 @@ end
 -- Inbound: slots --------------------------------------------------------------------------------
 
 local function stopPolling(n)
+    if n and n.tone == "error" then queueReport("stalled", n.text) end
     poll = nil
     if pollTicker then pollTicker:Cancel() end
     pollTicker = nil
@@ -313,9 +336,23 @@ local function buildGrid()
     grid:Hide()
 end
 
--- Header: "WAI", version, seq(2), slot(2), kind, length(2); then text \0 context \0 who \0 tab.
+-- The player's telemetry choice and the client build, plus queued reports if they opted in.
+local function telemetryTail()
+    local choice = ns.settings.get("telemetry")
+    local flags = choice == true and "t=1" or choice == false and "t=0" or ""
+    local version, build
+    if GetBuildInfo then version, build = GetBuildInfo() end
+    if version then flags = flags .. ";c=" .. version .. "." .. tostring(build) end
+    if choice ~= true then return "\0" .. flags .. "\0" end
+    local lines = table.concat(reports, "\n")
+    reports = {}
+    return "\0" .. flags .. "\0" .. lines:sub(1, 900)
+end
+
+-- Header: "WAI", version, seq(2), slot(2), kind, length(2); then
+-- text \0 context \0 who \0 tab \0 telemetry flags \0 telemetry reports.
 local function encode(item)
-    local tail = "\0" .. who .. "\0" .. (item.tab or activeTab())
+    local tail = "\0" .. who .. "\0" .. (item.tab or activeTab()) .. telemetryTail()
     local payload = (item.text or "") .. "\0" .. (item.ctx or "")
     payload = payload:sub(1, CAPACITY - HEADER_BYTES - #tail) .. tail
     local seq, slot = item.seq or 0, nextSlot
@@ -385,6 +422,11 @@ end
 function core.requestVideo(kind, query)
     shots[#shots + 1] = encode({ kind = "video", text = kind .. ":" .. query })
     shootNext()
+end
+
+-- Reports waiting to go with the next message (for "See what's sent").
+function core.pendingReports()
+    return reports
 end
 
 -- Seconds since the bridge was last heard from this session, or nil.
@@ -526,6 +568,8 @@ function core.view()
         full = nextSlot > SLOT_COUNT,
         modulesNeedReload = ns.modules.needsReload(),
         update = updateAvailable,
+        -- Ask about error reports once, after the player has used wai a little.
+        consent = ns.settings.get("telemetry") == nil and #c.messages > 0,
         tabs = core.tabs(),
     }
 end

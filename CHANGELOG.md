@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0 (2026-11-05)
+
+Opt-in, anonymous error reports. Off until you turn them on.
+
+- **Consent:** wai asks once in game (Turn on / No thanks). Change it any time in `/settings` → Privacy,
+  or with `wai telemetry on|off`.
+- **What's sent:** an event type, a short detail with your character name, realm and home folder
+  removed, the wai version, OS, client build and a random install id. Never chats or names. Full list
+  in docs/TELEMETRY.md.
+- **See what's sent** in Settings, and `wai telemetry show` in a terminal.
+- **Collector:** `apps/telemetry`, a small Bun server that keeps only the documented fields. Point
+  wai at it with `wai telemetry url <url>`; until then reports stay queued on your machine.
+- Banners can now offer a second action.
+
 ## 0.4.0 (2026-11-05)
 
 A minimap button.

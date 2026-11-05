@@ -40,6 +40,7 @@ The repo is private, so sign in with the GitHub CLI first (`gh auth login`). The
 | `wai status` | check everything wai needs (`doctor`) |
 | `wai logs [-f]` | show or follow the bridge log |
 | `wai uninstall [--purge]` | remove wai from WoW and login items |
+| `wai telemetry [on\|off\|show\|url <url>]` | anonymous error reports, off until you opt in ([docs/TELEMETRY.md](docs/TELEMETRY.md)) |
 
 **Development:** the repo is a Bun + Turborepo monorepo (`apps/cli`, `apps/addon`, `tooling/*`) driven by [Task](https://taskfile.dev): `task install`, `task setup` (link this checkout's addon into WoW), `task dev` (run the bridge from source), `task ci` (format, lint, typecheck, tests; the addon tests need `luajit`), `task build`. See [AGENTS.md](AGENTS.md). Releases: bump `apps/cli/package.json` and `apps/addon/wai.toc`, add a `CHANGELOG.md` section, `task release:check VERSION=x.y.z`, then push a `vx.y.z` tag.
 

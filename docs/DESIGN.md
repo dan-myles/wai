@@ -74,7 +74,7 @@ Line spacing 3–4px on multi-line text.
 - **Settings panel** (`/settings`, or the gear in the chat header): a 340px floating panel in the same chrome as the Fun menu, with `GENERAL`, `WINDOWS` and `ABOUT` sections. Rows are toggles, segmented controls and outline buttons, each with a one-line hint. The About line shows the version in gold and the bridge's last contact in muted text.
 - **Minimap button:** a 32px wai portrait (gold ring, arcane icon) on the minimap ring. On hover the ring turns full `gold` and an 18% gold halo appears behind it. A 9px status dot at the top right pulses `rare` blue while wai works and holds `gold` when a reply is unread.
 - **Fun menu** (`/fun`): a 300px floating panel with a portrait, "Fun" title and ×. `TOGGLES` and `TEST` section labels sit beside faded gold lines; test actions are a two-column grid of outline buttons.
-- **Banners:** one line plus an optional gold action. Tones: warn (gold), error (red), info (blue).
+- **Banners:** one line plus an optional gold action and an optional ghost secondary action to its left (the privacy consent banner's "No thanks"). Tones: warn (gold), error (red), info (blue).
 - **Attachment bar:** `ASKING ABOUT` label, item icon, the link, and a × to remove.
 - **Suggestions:** a slate list above the input. The command name is gold Friz, the hint is muted and right-aligned, and the selected row gets an 8% gold wash.
 - **Waypoint arrow** (`waypoint.lua`): a 58px dark disc in a gold ring with a gold arrowhead inside, on a faint gold halo. Place name in gold Friz and distance in muted Geist underneath. When you arrive, it turns `uncommon` green and fades out.

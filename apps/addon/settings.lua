@@ -68,6 +68,16 @@ local SECTIONS = {
         },
     },
     {
+        title = "PRIVACY",
+        items = {
+            {
+                kind = "toggle", key = "telemetry", label = "Error reports", hint = "Anonymous; never your chats or names",
+                get = function() return settings.get("telemetry") == true end,
+            },
+            { kind = "button", label = "See what's sent", run = function() settings.showTelemetry() end },
+        },
+    },
+    {
         title = "WINDOWS",
         items = {
             { kind = "button", label = "Reset window positions", run = resetPositions },
@@ -202,6 +212,19 @@ function settings.toggle()
     refreshAbout()
     panel:Show()
     T.fadeIn(panel, 0.12)
+end
+
+-- A note in the chat explaining exactly what error reports contain, and what's queued now.
+function settings.showTelemetry()
+    local on = settings.get("telemetry") == true
+    local lines = {
+        "|cffffd100Error reports|r  " .. (on and "on" or "off"),
+        "|cff9298a3Each report holds an event type (lua_error, stalled, claude_error, ...), a short detail with your character name and realm removed, the wai version, OS, client build and a random install id. Never your chats, quests or names. Off unless you turn it on. In a terminal, `wai telemetry show` lists everything queued and sent.|r",
+    }
+    local pending = ns.core.pendingReports()
+    lines[#lines + 1] = ("|cffffd100Waiting to send|r  %d"):format(#pending)
+    for _, r in ipairs(pending) do lines[#lines + 1] = "|cff9298a3" .. r:gsub("\t", ": ") .. "|r" end
+    ns.core.note(table.concat(lines, "\n"))
 end
 
 -- For later releases: add a section or an item (and its default) without touching the panel code.

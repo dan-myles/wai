@@ -10,6 +10,7 @@ it works and docs/DESIGN.md for the visual language.
   tooling, never the other way around.
   - `apps/cli` (`@wai/cli`): the bridge and the `wai` CLI, compiled to one binary per platform.
   - `apps/addon` (`@wai/addon`): the WoW addon in Lua 5.1, plus its headless test suite.
+  - `apps/telemetry` (`@wai/telemetry`): the collector for opt-in error reports (docs/TELEMETRY.md).
   - `tooling/typescript`, `tooling/oxfmt`, `tooling/oxlint`: the presets every TypeScript workspace extends.
 - Never install dependencies in the repo root; install in the target workspace. Turborepo is the
   only root dependency. Shared versions live in the root `package.json` catalog (`"catalog:"`).
@@ -30,6 +31,8 @@ it works and docs/DESIGN.md for the visual language.
   The combat log is closed to addons; use `C_DamageMeter` and `C_DeathRecap`.
 - Claude's capabilities live in `apps/cli/SKILL.md`, injected into every prompt. Reply markup
   (`[[item:..]]`, `[[setway:..]]`, `[[remember:..]]`...) is rendered and acted on by `links.lua` and `wai.lua`.
+- Telemetry is opt-in and anonymous. Never add a field to reports without updating
+  docs/TELEMETRY.md and the collector's schema, and never send chat text or names.
 - Never write anything that automates gameplay. wai reads state, shows information and builds UI.
 
 ## Code Standards

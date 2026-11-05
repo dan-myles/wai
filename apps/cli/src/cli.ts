@@ -12,9 +12,10 @@ import {
 } from "node:fs"
 import { mkdir, readFile } from "node:fs/promises"
 
-import { HOME, LOG_FILE, PID_FILE } from "./files"
+import { HOME, LOG_FILE, PID_FILE, writeConfig } from "./files"
 import { doctor, install, uninstall } from "./install"
 import { bridgePid, restart } from "./service"
+import { enabled, endpoint, flush, history, setConsent } from "./telemetry"
 import { update } from "./update"
 import { VERSION } from "./version"
 
@@ -28,6 +29,8 @@ Usage: wai <command>
   status                   check that everything wai needs is in place (alias: doctor)
   logs [-f]                show the bridge log, or follow it
   uninstall [--purge]      remove wai from WoW and login items (--purge also deletes chats and settings)
+  telemetry [on|off|show|url <url>]
+                           anonymous error reports: off until you turn them on (see docs/TELEMETRY.md)
   version                  print the version
 
 In game, type /wai to open the chat, /help for commands, /update to update from inside WoW.`
@@ -91,6 +94,27 @@ async function claimPidFile() {
   }
 }
 
+async function telemetry(args: string[]) {
+  const [action, value] = args
+  if (action === "on" || action === "off") {
+    setConsent(action === "on")
+  }
+  if (action === "url") {
+    writeConfig({ telemetryUrl: value || undefined })
+  }
+  if (action === "show") {
+    const { queued, sent } = await history()
+    console.log(
+      `queued (${queued.length}):\n${queued.slice(-20).join("\n")}\n\nsent (${sent.length}):\n${sent.slice(-20).join("\n")}`,
+    )
+    return
+  }
+  await flush()
+  console.log(
+    `error reports: ${enabled() ? "on" : "off"}${endpoint() ? ` (sending to ${endpoint()})` : " (no endpoint set; reports stay queued on this machine)"}`,
+  )
+}
+
 async function logs(follow: boolean) {
   const text = await readFile(LOG_FILE, "utf-8").catch(() => "")
   console.log(text.split("\n").slice(-80).join("\n"))
@@ -139,6 +163,10 @@ try {
     }
     case "logs": {
       await logs(args.includes("-f") || args.includes("--follow"))
+      break
+    }
+    case "telemetry": {
+      await telemetry(args)
       break
     }
     case "uninstall": {

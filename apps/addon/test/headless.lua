@@ -64,6 +64,7 @@ _G.Minimap = new("Frame"); Minimap.w, Minimap.h = 140, 140
 function Minimap:GetEffectiveScale() return 1 end
 _G.GetCursorPosition = function() return _G.cursorX or 0, _G.cursorY or 0 end
 _G.IsShiftKeyDown = function() return _G.shift end
+_G.GetBuildInfo = function() return "1.60.1", "70790" end
 _G.QuestFrame = new("Frame")
 _G.UISpecialFrames = {}
 _G.STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
@@ -493,6 +494,48 @@ assert(ns.settings.get("minimap") == false and not mm:IsShown(), "toggle hides t
 found.scripts.OnClick(found)
 assert(mm:IsShown(), "toggle shows it again")
 print("minimap ok")
+
+-- Telemetry: consent banner, flags in every payload, scrubbed reports only once opted in.
+local function fullPayload()
+  local blocks = {}
+  for _, f in ipairs(frames) do if f.kind == "Texture" and f.color and f.parent and f.parent.kind == "Frame" and not f.parent.name and #blocks < 8192 and f.color[1] ~= nil and f.w and f.w < 3 then blocks[#blocks + 1] = f end end
+  local bits = {}
+  for _, b in ipairs(blocks) do for c = 1, 3 do bits[#bits + 1] = b.color[c] end end
+  local function byte(i) local v = 0; for j = 1, 8 do v = v * 2 + (bits[i * 8 + j] or 0) end; return v end
+  local len = byte(9) * 256 + byte(10)
+  local out = {}
+  for i = 11, 10 + len do out[#out + 1] = string.char(byte(i)) end
+  local parts, payload = {}, table.concat(out)
+  for part in (payload .. "\0"):gmatch("(.-)%z") do parts[#parts + 1] = part end
+  return parts -- text, ctx, who, tab, flags, reports
+end
+WaiDB.settings.telemetry = nil
+ns.core.switchTab("main"); ns.ui.show(); tick(0.01)
+assert(ns.core.view().consent and #texts("Help improve wai with anonymous error reports") == 1, "consent banner")
+local noThanks
+for _, f in ipairs(frames) do if f.kind == "Button" and f.label and f.label.text == "No thanks" then noThanks = f end end
+noThanks.scripts.OnClick(noThanks, "LeftButton")
+assert(ns.settings.get("telemetry") == false and not ns.core.view().consent, "no thanks")
+_G.Screenshot = function() end
+fire("SCREENSHOT_SUCCEEDED")
+ns.core.report("Backshot-Forever: boom in ui.lua")
+SlashCmdList.WAI("hi")
+local parts = fullPayload()
+assert(parts[5] == "t=0;c=1.60.1.70790" and parts[6] == "", "opted out: flag only, no reports: " .. tostring(parts[5]))
+fire("SCREENSHOT_SUCCEEDED")
+for _, f in ipairs(frames) do if f.kind == "Button" and f.label and f.label.text == "Error reports" then f.scripts.OnClick(f) end end
+assert(ns.settings.get("telemetry") == true, "opted in from settings")
+ns.core.report("Backshot hit Forever trouble")
+SlashCmdList.WAI("hello again")
+parts = fullPayload()
+assert(parts[5] == "t=1;c=1.60.1.70790", "opted in flag")
+assert(parts[6]:find("lua_error\t<name>: boom in ui.lua", 1, true), "queued report, scrubbed: " .. parts[6])
+assert(parts[6]:find("lua_error\t<name> hit <name> trouble", 1, true), "name and realm scrubbed")
+assert(not parts[6]:find("Backshot"), "no character name anywhere")
+fire("SCREENSHOT_SUCCEEDED")
+for _, f in ipairs(frames) do if f.kind == "Button" and f.label and f.label.text == "See what's sent" then f.scripts.OnClick(f, "LeftButton") end end
+assert(#texts("Never your chats, quests or names") == 1, "see what's sent explains it")
+print("telemetry ok")
 
 -- Suggestions while typing.
 subjectInput:SetText("/re")

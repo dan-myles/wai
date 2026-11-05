@@ -258,7 +258,7 @@ end
 -- Captions follow wai's latest reply while TikTok mode is on.
 function video.caption(text)
     if not player or not tiktok() then return end
-    text = ns.links.plainGlyphs(text or ""):gsub("%[%[.-%]%]", ""):gsub("%s+", " ")
+    text = ns.links.dropMacros(ns.links.plainGlyphs(text or "")):gsub("%[%[.-%]%]", ""):gsub("%s+", " ")
     -- The last sentence or so, like burned-in captions.
     local tail = text:match("([^%.!%?]+[%.!%?]?)%s*$") or text
     if #tail > 90 then tail = "…" .. tail:sub(-90) end

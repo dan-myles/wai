@@ -184,6 +184,10 @@ local function capture(m)
         elseif a.kind == "stream" then
             local name, text = a.body:match("^([^:]+):(.+)$")
             if name then ns.video.stream(name, text) end
+        elseif a.kind == "macro" then
+            ns.macros.save(a.body, a.text)
+        elseif a.kind == "delmacro" then
+            ns.macros.delete(a.body)
         elseif a.kind == "ui" then
             local verb, name = a.body:match("^(%a+):(.+)$")
             if name then ns.modules.setShown(name, verb ~= "hide") end
@@ -500,7 +504,7 @@ function core.send(msg, subject)
         tab.auto = nil
     end
     if subject and subject.ref ~= "" then msg = msg .. "  " .. subject.ref end
-    enqueue({ kind = "chat", text = msg, ctx = ns.context.collect(subject, tab) })
+    enqueue({ kind = "chat", text = msg, ctx = ns.context.collect(subject, tab, msg) })
 end
 
 function core.reset()

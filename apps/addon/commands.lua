@@ -20,6 +20,7 @@ local HELP = table.concat({
     MUTED .. "\"Remember I'm saving for a mount.\"  \"What do you remember?\"  \"Forget that.\"" .. END,
     MUTED .. "\"Take me to the Fargodeep Mine.\"  \"How did that fight go?\"  \"Why did I die?\"  \"What's going on in chat?\"" .. END,
     MUTED .. "\"Build me a gold-per-hour tracker.\"  UI wai builds appears live, no reload." .. END,
+    MUTED .. "\"Make me a mouseover heal macro.\"  \"Fix my Polymorph macro.\"  wai writes your macros." .. END,
     "",
     GOLD .. "Ask from anywhere" .. END,
     MUTED .. "Alt-click an item, a quest in your log, your target's portrait or a player's name in chat. Quest dialogs have an Ask wai button." .. END,

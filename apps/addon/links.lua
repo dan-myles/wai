@@ -120,23 +120,57 @@ function links.plain(text)
         :gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("\1", "|"))
 end
 
+-- Macro bodies span lines and use [brackets] themselves, so a macro is a block, not a token:
+-- [[macro:Name]] or [[macro:Name:general]], the body, then [[/macro]].
+local MACRO = "%[%[macro:([^%]]-)%]%][ \t]*\n?(.-)%s*%[%[/macro%]%]"
+
+function RENDER.delmacro(body)
+    return "|cff8c6f3aDeleted macro: " .. body .. "|r"
+end
+
+-- Text without its macros, finished or still streaming (captions have no room for them).
+function links.dropMacros(text)
+    return (text:gsub(MACRO, ""):gsub("%[%[macro:[^%]]-%]%].*$", ""))
+end
+
+-- "Name" or "Name:general" -> name, general
+function links.macroHead(head)
+    local name, scope = head:match("^(.-):(%a+)$")
+    return strtrim(name or head), scope == "general"
+end
+
+-- A macro card always sits on lines of its own.
+local function macroCard(before, head, body)
+    local name, general = links.macroHead(head)
+    local lines = strtrim(body):gsub("||", "|"):gsub("|", "||"):gsub("\n", "|r\n|cff9298a3")
+    return before .. (before ~= "" and "\n" or "") .. ("|cff8c6f3aMacro %s (%s)|r\n|cff9298a3%s|r\n"):format(name, general and "all characters" or "this character", lines)
+end
+
 -- Renders markup in (possibly still streaming) text; a half-received token stays hidden.
 function links.render(text)
     text = links.plainGlyphs(text)
     local open = text:find("%[%[[^%]]*$")
     if open then text = text:sub(1, open - 1) end
-    return (text:gsub("%[%[(%a+):([^%]]-)%]%]", function(kind, body)
+    text = text:gsub("([^\n]?)" .. MACRO, macroCard):gsub("\n+$", "")
+    -- A macro still streaming in: its body would flash up as plain text.
+    text = text:gsub("%[%[macro:[^%]]-%]%].*$", "|cff8c6f3aWriting a macro…|r")
+    text = text:gsub("%[%[(%a+):([^%]]-)%]%]", function(kind, body)
         local fn = RENDER[kind]
         if not fn then return nil end
         local ok, out = pcall(fn, body)
         return ok and out or body
-    end))
+    end)
+    -- A hidden token on its own first line ([[title:..]]) would leave a blank line.
+    return (text:gsub("^%s+", ""))
 end
 
 -- Actions the agent asked for in a finished reply, in order: { kind, body }.
-local ACTIONS = { remember = true, forget = true, setway = true, ui = true, tiktok = true, stream = true, title = true }
+local ACTIONS = { remember = true, forget = true, setway = true, ui = true, tiktok = true, stream = true, title = true, delmacro = true }
 function links.actions(text)
     local list = {}
+    for head, body in text:gmatch(MACRO) do
+        list[#list + 1] = { kind = "macro", body = head, text = body }
+    end
     for kind, body in text:gmatch("%[%[(%a+):([^%]]-)%]%]") do
         if ACTIONS[kind] then list[#list + 1] = { kind = kind, body = body } end
     end

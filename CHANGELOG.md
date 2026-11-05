@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.9.1 (2026-11-05)
+
+wai writes your macros.
+
+- Ask for a macro ("make me a mouseover heal macro", "fix my Polymorph macro") and wai creates it,
+  or replaces the one with that name, keeping its icon. It also deletes macros when asked.
+- New macros are character-specific unless they suit every character (`/reload`, emotes); wai is
+  told to prefer character macros for class spells, pets, professions and gear.
+- When your message mentions macros, wai sees your current ones (the ones you name first), so it
+  edits the real thing.
+- Changes asked for in combat save when combat ends. Over-long names (16) or bodies (255) are
+  explained instead of saved.
+- Replies show each macro as a small card with its text, which you can click to copy.
+- Fix: a reply that starts with a hidden title no longer opens with a blank line.
+- New addon file: restart WoW (not just `/reload`) after updating.
+
 ## 0.9.0 (2026-11-05)
 
 Copy text from the chat.

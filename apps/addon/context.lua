@@ -244,7 +244,8 @@ end
 
 -- subject: optional { details = "..." } for whatever the player alt-clicked or attached.
 -- tab: the chat this message is for ({ name, manual }), so Claude can title it.
-function context.collect(subject, tab)
+-- message: the player's text; mentioning macros adds the macro list (too big to send every time).
+function context.collect(subject, tab, message)
     local lines = {}
     local function add(key, fn)
         local ok, value = pcall(fn)
@@ -255,6 +256,10 @@ function context.collect(subject, tab)
             UnitLevel("player"), UnitRace("player"), UnitClass("player"))
     end)
     add("subject", function() return subject and subject.details end)
+    add("macros", function()
+        if not (message or ""):lower():find("macro") then return nil end
+        return "\n" .. ns.macros.describe(message, 1400)
+    end)
     add("chat title", function()
         if not tab then return nil end
         return ("%q %s"):format(tab.name, tab.manual and "(named by the player; keep it)" or "(you can retitle it)")

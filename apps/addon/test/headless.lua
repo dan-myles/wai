@@ -82,7 +82,16 @@ _G.GetPhysicalScreenSize = function() return 2560, 1440 end
 _G.GetTime = function() return now end
 _G.GetCVar = function() return "jpeg" end
 _G.SetCVar = function() end
-_G.InCombatLockdown = function() return false end
+_G.InCombatLockdown = function() return _G.inCombat == true end
+-- Macros: general ones at 1..n, character ones from MAX_ACCOUNT_MACROS + 1, like the client.
+_G.MAX_ACCOUNT_MACROS, _G.MAX_CHARACTER_MACROS = 120, 18
+local macroBook = { general = { { name = "Reload", icon = 1, body = "/reload" } }, char = { { name = "Pet", icon = 7, body = "/cast [@pet,dead] Revive Pet; Call Pet" } } }
+local function macroAt(i) if i > 120 then return macroBook.char, i - 120 end return macroBook.general, i end
+_G.GetNumMacros = function() return #macroBook.general, #macroBook.char end
+_G.GetMacroInfo = function(i) local list, j = macroAt(i); local m = list[j]; if m then return m.name, m.icon, m.body end end
+_G.CreateMacro = function(name, icon, body, perChar) if _G.inCombat then error("combat") end; local list = perChar and macroBook.char or macroBook.general; list[#list + 1] = { name = name, icon = icon, body = body } end
+_G.EditMacro = function(i, name, icon, body) local list, j = macroAt(i); list[j] = { name = name, icon = icon, body = body } end
+_G.DeleteMacro = function(i) local list, j = macroAt(i); table.remove(list, j) end
 _G.ReloadUI = function() print("ReloadUI called") end
 local shotBytes
 _G.Screenshot = function() shotBytes = true end
@@ -618,6 +627,47 @@ assert(sel.text == "Codex answers from now on.", "read-only")
 sel.scripts.OnEscapePressed(sel)
 assert(not sel.shown and #texts("Codex answers") == 1 and #texts("Enter to send") == 1, "Esc puts the message back")
 print("copy ok")
+
+-- Macros: the list rides along when the player mentions macros; a reply's macro block creates a
+-- character macro (or replaces one by name), shows as a card, and combat defers it.
+SlashCmdList.WAI("what does my pet macro do?")
+sent = WaiDB.outbox[#WaiDB.outbox]
+local listed = sent.ctx
+assert(listed:find("1 of 18 character slots, 1 of 120 general slots used") and listed:find("%- Pet %(character%): /cast %[@pet,dead%] Revive Pet; Call Pet"), "macros in context: " .. sent.ctx)
+SlashCmdList.WAI("hello")
+assert(not WaiDB.outbox[#WaiDB.outbox].ctx:find("macros:"), "no macro list otherwise")
+fire("SCREENSHOT_SUCCEEDED")
+local heal = "[[macro:Mouseover Heal]]\n#showtooltip\n/cast [@mouseover,help,nodead][] Flash Heal\n[[/macro]]\nDrag it from /macro to your bars. [[macro:Pet]]\n/cast Call Pet\n[[/macro]][[macro:Wave:general]]\n/wave\n[[/macro]][[delmacro:Reload]]"
+slotData.default = { who = "Backshot-Forever", beat = 95, chats = { main = { ackSeq = WaiDB.seq, busy = false, messages = {
+  { id = 70, role = "assistant", text = heal:sub(1, 60), done = false, at = 70 },
+} } } }
+now = now + 2; __ticker.fn(); tick(1, 3)
+assert(#texts("Writing a macro") == 1 and #texts("#showtooltip") == 0, "a streaming macro shows a placeholder")
+assert(#macroBook.char == 1, "nothing saved before the reply is done")
+slotData.default.beat = 96
+slotData.default.chats.main.messages[1] = { id = 70, role = "assistant", text = heal, done = true, at = 70 }
+now = now + 2; __ticker.fn(); tick(0.05, 300)
+assert(macroBook.char[2] and macroBook.char[2].name == "Mouseover Heal" and macroBook.char[2].body == "#showtooltip\n/cast [@mouseover,help,nodead][] Flash Heal", "new macros are per character")
+assert(macroBook.char[2].icon == "INV_MISC_QUESTIONMARK", "icon follows the spell")
+assert(macroBook.char[1].body == "/cast Call Pet" and macroBook.char[1].icon == 7, "same name edits in place, keeping the icon")
+assert(macroBook.general[1] and macroBook.general[1].name == "Wave", "general on request, Reload deleted")
+assert(#texts("Macro Mouseover Heal %(this character%)") == 1 and #texts("Drag it from /macro") >= 1, "the macro renders as a card")
+assert(#texts("Flash Heal|r\n\nDrag it from /macro to your bars%. \n|cff8c6f3aMacro Pet") == 1, "cards sit on their own lines")
+assert(#texts("%[@mouseover,help,nodead%]%[%] Flash Heal") == 1 and #texts("%[%[") == 0, "body shown, no raw markup")
+-- In combat the change waits for PLAYER_REGEN_ENABLED.
+_G.inCombat = true
+slotData.default.beat = 97
+slotData.default.chats.main.messages[2] = { id = 71, role = "assistant", text = "[[macro:Pet]]\n/cast Revive Pet\n[[/macro]]", done = true, at = 71 }
+now = now + 2; __ticker.fn(); tick(1, 3)
+assert(macroBook.char[1].body == "/cast Call Pet" and #texts("Macro Pet changes after combat") == 1, "deferred in combat")
+_G.inCombat = false
+fire("PLAYER_REGEN_ENABLED")
+assert(macroBook.char[1].body == "/cast Revive Pet", "applied after combat")
+-- Over WoW's limits: explained, not saved.
+ns.macros.save("A name far too long for wow", "/wave")
+ns.macros.save("Long", ("x"):rep(256))
+assert(#texts("at most 16 characters") == 1 and #texts("WoW allows 255") == 1 and #macroBook.char == 2, "limits")
+print("macros ok")
 
 -- Suggestions while typing.
 subjectInput:SetText("/re")

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.3-nightly.4 (2026-11-05)
+
+- **Wowhead's Forever database is wai's primary source.** Before answering about a specific
+  quest, item, NPC, drop or location, Claude and Codex check `wowhead.com/forever`. They open
+  pages by ID straight from your quest log and links (`quest=62`), and use a site search when
+  they only have a name. Waypoints use Wowhead's coordinates where it has them. method.gg and
+  Icy Veins remain the fallback.
+
 ## 0.9.3-nightly.3 (2026-11-05)
 
 - Settings now dock to the chat window: the panel sits beside it (on the left if the window is

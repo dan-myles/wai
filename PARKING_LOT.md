@@ -5,6 +5,7 @@ Ideas we're not working on yet. Each needs a feasibility check first.
 Nothing is open right now.
 
 ## Done
+- **Wowhead Forever as primary source (v0.9.3-nightly.4):** the skill sends agents to `wowhead.com/forever/<type>=ID` pages before answering game specifics.
 - **Context memory (v0.9.3-nightly.2):** the bridge remembers character, notes, talents and the quest log (diffed by quest ID) plus completed quest history; per-field budgets so chat can't crowd them out.
 - **Keybind and update tracks (v0.9.3-nightly.1):** set the open key in `/settings`; Stable or Nightly updates there or with `wai track`, nightlies published as prereleases.
 - **Tab menu (v0.9.2):** right-click a tab for Rename / Delete (confirmed) instead of closing it.

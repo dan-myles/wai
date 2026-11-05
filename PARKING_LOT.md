@@ -5,6 +5,7 @@ Ideas we're not working on yet. Each needs a feasibility check first.
 Nothing is open right now.
 
 ## Done
+- **Copy from chat (v0.9.0):** click a message to select its plain text in a read-only edit box, then Ctrl+C.
 - **CLIProxyAPI support (v0.8.0):** `wai proxy` routes Claude and Codex through an API gateway with its own key and model, passed per run so the player's CLI configs stay untouched; `wai status` checks the gateway.
 - **Codex support (v0.7.0):** Codex answers alongside Claude: an Agent switch in `/settings` and `wai agent`, per-chat sessions that hand the recent conversation to the new agent on a switch, and the full skill, markup, web search and UI modules through `codex exec --json`.
 - **Auto-updating tab titles (v0.6.0):** Claude titles a chat with a hidden `[[title:…]]` on its first reply and again when the topic shifts; the context tells it the current title and whether the player named the tab; hand-named tabs never change; new titles fade in with a gold glow.

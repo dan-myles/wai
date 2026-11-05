@@ -152,6 +152,8 @@ Everything else, just ask. Some things to try:
 > *"Where do I turn in this quest?"* · *"Is this an upgrade for a hunter?"* · *"Why did I die?"* ·
 > *"Make me a frame that tracks my soul shards"* · *"Show me a guide for the Deadmines"* · *"Turn on TikTok mode"*
 
+**Copying:** click any message to select its text, then press Ctrl+C. Esc puts it back.
+
 **Minimap button:** left-click for chat, right-click for settings, shift-right-click for fun. Drag it around the ring. Its dot pulses blue while wai works and turns gold when a reply is waiting.
 
 ## How it works

@@ -25,7 +25,7 @@ local HELP = table.concat({
     MUTED .. "Alt-click an item, a quest in your log, your target's portrait or a player's name in chat. Quest dialogs have an Ask wai button." .. END,
     "",
     GOLD .. "In replies" .. END,
-    MUTED .. "Hover items, spells and quests for their tooltip; shift-click to link them in chat. Click a blue pin for a waypoint arrow; right-click the arrow to clear it." .. END,
+    MUTED .. "Hover items, spells and quests for their tooltip; shift-click to link them in chat. Click a blue pin for a waypoint arrow; right-click the arrow to clear it. Click a message to select its text, then Ctrl+C to copy." .. END,
     "",
     GOLD .. "What wai sees" .. END,
     MUTED .. "Your character, notes, target, zone, quest log, recent chat and recent fights from the damage meter. Each character has its own conversation." .. END,

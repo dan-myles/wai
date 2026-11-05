@@ -50,6 +50,7 @@ function Obj:NumLines() return 2 end
 function Obj:SetColorTexture(r, g, b) self.color = { r, g, b } end
 function Obj:SetRotation(r) self.rotation = r end
 function Obj:SetHyperlinksEnabled(v) self.links = v end
+function Obj:SetParent(p) self.parent = p end
 
 _G.CreateFrame = function(kind, name, parent) local f = new(kind, parent, name); if name then _G[name] = f end; if kind == "GameTooltip" then _G[name .. "TextLeft1"] = new("FontString"); _G[name .. "TextLeft1"].text = "Linen Cloth"; _G[name .. "TextLeft2"] = new("FontString"); _G[name .. "TextLeft2"].text = "|cff9d9d9dTrade Goods|r" end; return f end
 _G.CreateFont = function() return new("Font") end
@@ -594,6 +595,29 @@ slotData.default = { who = "Backshot-Forever", beat = 91, agent = "claude", chat
 now = now + 2; __ticker.fn(); tick(1.1, 1)
 assert(ns.core.agent() == "claude" and #texts("powered by Claude") == 1, "the bridge's answer wins")
 print("agents ok")
+
+-- Copying: clicking a message swaps it for a read-only edit box holding its plain text, all
+-- selected; a click on a link doesn't; edits revert; Esc puts the message back.
+assert(ns.links.plain("|cffffffff|Hitem:2589|h[Linen Cloth]|h|r at |cff3fa0ff|Hwai:way:T:1:2:Inn|h|Tpin:13:13:0:-1|t Inn|h|r, a||rb") == "[Linen Cloth] at Inn, a|rb", "plain text for copying")
+local card
+for _, f in ipairs(frames) do
+  if f.scripts.OnMouseUp and f.links and f.shown then
+    for _, c in ipairs(frames) do if c.parent == f and c.kind == "FontString" and c.shown and c.text:find("Codex answers") then card = f end end
+  end
+end
+assert(card, "the note row is selectable")
+card.overLink = true; card.scripts.OnMouseUp(card, "LeftButton")
+local function selector() for _, f in ipairs(frames) do if f.kind == "EditBox" and f.plain then return f end end end
+assert(not selector(), "clicking a link doesn't select")
+card.overLink = false; card.scripts.OnMouseUp(card, "LeftButton")
+local sel = selector()
+assert(sel and sel.shown and sel.text == "Codex answers from now on." and sel.parent == card, "click selects the message's text")
+assert(#texts("Codex answers") == 0 and #texts("^Ctrl%+C to copy") == 1, "the edit box replaces the text and the footer explains")
+sel.text = "Codex answers from now on.x"; sel.scripts.OnTextChanged(sel, true)
+assert(sel.text == "Codex answers from now on.", "read-only")
+sel.scripts.OnEscapePressed(sel)
+assert(not sel.shown and #texts("Codex answers") == 1 and #texts("Enter to send") == 1, "Esc puts the message back")
+print("copy ok")
 
 -- Suggestions while typing.
 subjectInput:SetText("/re")

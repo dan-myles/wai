@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0 (2026-11-05)
+
+Copy text from the chat.
+
+- Click any message (yours, wai's, notes or errors) to select its text, then press Ctrl+C. You can
+  also drag to select just part of it. Esc, or clicking back into the input, puts the message back.
+- The copy is plain text: link colours and waypoint pins drop out, and item names keep their brackets.
+- Links still work as before: clicking one never starts a selection.
+
 ## 0.8.0 (2026-11-05)
 
 CLIProxyAPI support. Both agents can send their model calls through an API gateway.

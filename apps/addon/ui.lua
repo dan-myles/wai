@@ -22,7 +22,7 @@ local MAX_TABS = 8
 
 local frame, scroll, content, thumb, empty, banner, attachBar, suggest, composer, glow, input, placeholder, sendButton
 local strip, tabButtons, addTab, renamer
-local statusDot, statusText
+local statusDot, statusText, hint
 local rows, pools = {}, {}
 local attachment -- subject from ns.ask, sent with the next message
 local suggestions, selected = {}, 1
@@ -31,6 +31,71 @@ local suggestions, selected = {}, 1
 
 local function measureWidth(fs)
     return fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth() or fs:GetStringWidth()
+end
+
+-- Selecting text: font strings can't be highlighted, so clicking a message swaps its text for a
+-- read-only edit box over the same spot, all of it selected, ready for Ctrl+C. Links stay
+-- clickable until then: a click on a link never starts a selection.
+local HINT = "Enter to send  ·  /help for commands"
+local selector, selecting -- the shared edit box, and the row it covers
+
+local function endSelect()
+    local r = selecting
+    if not r then return end
+    selecting = nil -- first: ClearFocus fires OnEditFocusLost, which lands back here
+    selector:ClearFocus()
+    selector:Hide()
+    r.text:Show()
+    hint:SetText(HINT)
+end
+
+local function buildSelector()
+    selector = CreateFrame("EditBox", nil, content)
+    selector:SetMultiLine(true)
+    selector:SetAutoFocus(false)
+    selector:SetHighlightColor(C.gold[1], C.gold[2], C.gold[3], 0.35)
+    selector:Hide()
+    -- Read-only: any edit (typing, paste, cut) puts the message back.
+    selector:SetScript("OnTextChanged", function(self, user)
+        if user then
+            self:SetText(self.plain)
+            self:HighlightText()
+        end
+    end)
+    selector:SetScript("OnEscapePressed", guard(endSelect))
+    selector:SetScript("OnEditFocusLost", guard(endSelect))
+end
+
+local function startSelect(r)
+    if selecting == r then return end
+    endSelect()
+    if not selector then buildSelector() end
+    local holder = r.holder
+    selector.plain = ns.links.plain(r.text:GetText() or "")
+    selector:SetParent(holder)
+    selector:SetFrameLevel(holder:GetFrameLevel() + 5)
+    selector:SetFont(r.text:GetFont())
+    if selector.SetSpacing then selector:SetSpacing(r.text:GetSpacing() or 0) end
+    selector:SetTextColor(r.text:GetTextColor())
+    selector:ClearAllPoints()
+    selector:SetPoint("TOPLEFT", r.text)
+    selector:SetSize(r.text:GetWidth(), math.ceil(r.text:GetStringHeight()) + 4)
+    selector:SetText(selector.plain)
+    selecting = r
+    r.text:Hide()
+    selector:Show()
+    selector:SetFocus()
+    selector:HighlightText()
+    hint:SetText("Ctrl+C to copy  ·  Esc when done")
+end
+
+-- Left-click a message (not one of its links) to select its text.
+local function selectable(r, holder)
+    r.holder = holder
+    holder:EnableMouse(true)
+    holder:SetScript("OnMouseUp", guard(function(self, button)
+        if button == "LeftButton" and not self.overLink then startSelect(r) end
+    end))
 end
 
 local ROW_TYPES = {}
@@ -47,6 +112,7 @@ ROW_TYPES.user = function(parent)
     r.text:SetPoint("TOPLEFT", 12, -9)
     r.text:SetSpacing(3)
     ns.links.enable(r.bubble)
+    selectable(r, r.bubble)
     function r:Measure(text, width)
         local maxW = math.floor(width * 0.8) - 24
         self.text:SetWidth(maxW)
@@ -75,6 +141,7 @@ ROW_TYPES.assistant = function(parent)
     r.text:SetPoint("TOPLEFT", 12, -10)
     r.text:SetSpacing(4)
     ns.links.enable(r.card)
+    selectable(r, r.card)
     function r:Measure(text, width)
         local w = width - AVATAR - 10
         self.text:SetWidth(w - 24)
@@ -124,6 +191,7 @@ ROW_TYPES.note = function(parent)
     r.text:SetPoint("TOPLEFT", 14, -11)
     r.text:SetSpacing(4)
     ns.links.enable(r)
+    selectable(r, r)
     function r:Measure(text, width)
         self.text:SetWidth(width - 28)
         self.text:SetText(text)
@@ -155,6 +223,7 @@ ROW_TYPES.error = function(parent)
     T.box(r, 8, C.redBg, C.redLine)
     r.text = T.label(r, "regular", 12, C.red)
     r.text:SetPoint("TOPLEFT", 12, -10)
+    selectable(r, r)
     function r:Measure(text, width)
         self.text:SetWidth(width - 24)
         self.text:SetText(text)
@@ -174,6 +243,7 @@ local function acquire(kind)
 end
 
 local function release(r)
+    if r == selecting then endSelect() end
     r:Hide()
     r.cachedText, r.cachedWidth = nil, nil
     pools[r.kind] = pools[r.kind] or {}
@@ -487,6 +557,7 @@ function ui.update()
         end
         used[e.key] = true
         if r.cachedText ~= e.text or r.cachedWidth ~= width then
+            if r == selecting then endSelect() end -- the text moved under the selection
             r.h = r:Measure(e.text, width)
             r.cachedText, r.cachedWidth = e.text, width
         end
@@ -803,9 +874,9 @@ local function buildComposer()
 end
 
 local function buildFooter()
-    local hint = T.label(frame, "regular", 11, C.subtle)
+    hint = T.label(frame, "regular", 11, C.subtle)
     hint:SetPoint("BOTTOMLEFT", 18, 13)
-    hint:SetText("Enter to send  ·  /help for commands")
+    hint:SetText(HINT)
 
     statusText = T.label(frame, "display", 10, C.muted)
     statusText:SetPoint("BOTTOMRIGHT", -32, 13)
@@ -892,6 +963,7 @@ function ui.build()
         ui.update()
         scrollTo(scrollRange())
     end))
+    frame:SetScript("OnHide", guard(endSelect))
 end
 
 -- Sets what the next message is about and puts the cursor in the input.

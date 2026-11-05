@@ -113,6 +113,13 @@ function links.plainGlyphs(text)
     return (text:gsub("[\240-\244][\128-\191][\128-\191][\128-\191]", ""))
 end
 
+-- Rendered text -> what the player reads, without colour, link and texture codes (for copying).
+-- Escaped pipes are parked first so a typed "||r" isn't mistaken for a code.
+function links.plain(text)
+    return (text:gsub("||", "\1"):gsub("|T.-|t ?", ""):gsub("|H.-|h(.-)|h", "%1")
+        :gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("\1", "|"))
+end
+
 -- Renders markup in (possibly still streaming) text; a half-received token stays hidden.
 function links.render(text)
     text = links.plainGlyphs(text)
@@ -144,6 +151,7 @@ local function parseWay(link)
 end
 
 local function onEnter(self, link)
+    self.overLink = true
     local zone, x, y, label = parseWay(link)
     if zone then
         return T.tooltip(self, label, ("%s  %.1f, %.1f"):format(zone, x, y), "Click to set a waypoint arrow.")
@@ -167,7 +175,10 @@ end
 function links.enable(f)
     f:SetHyperlinksEnabled(true)
     f:SetScript("OnHyperlinkEnter", onEnter)
-    f:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
+    f:SetScript("OnHyperlinkLeave", function(self)
+        self.overLink = false
+        GameTooltip:Hide()
+    end)
     f:SetScript("OnHyperlinkClick", ns.core.guard(onClick))
 end
 

@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600" viewBox="0 0 1000 600">
+  <defs>
+    <linearGradient id="scene" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1B2230"/>
+      <stop offset="0.55" stop-color="#11161F"/>
+      <stop offset="1" stop-color="#0A0D12"/>
+    </linearGradient>
+    <linearGradient id="win" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#11151C"/>
+      <stop offset="1" stop-color="#0D1016"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFD100" stop-opacity="0.07"/>
+      <stop offset="1" stop-color="#FFD100" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#C9A24B" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#C9A24B" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#C9A24B" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="arcane" cx="0.5" cy="0.42" r="0.6">
+      <stop offset="0" stop-color="#E8F4FF"/>
+      <stop offset="0.25" stop-color="#7CC4FF"/>
+      <stop offset="0.6" stop-color="#4A3FC9"/>
+      <stop offset="1" stop-color="#140F2E"/>
+    </radialGradient>
+    <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#C9A24B" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#C9A24B" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="focus" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#C9A24B" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#C9A24B" stop-opacity="0"/>
+    </radialGradient>
+    <symbol id="portrait" viewBox="-20 -20 40 40">
+      <circle r="19" fill="#090B0F"/>
+      <circle r="17" fill="url(#arcane)"/>
+      <path d="M0 -12 L2.2 -2.2 L12 0 L2.2 2.2 L0 12 L-2.2 2.2 L-12 0 L-2.2 -2.2 Z" fill="#F4FAFF"/>
+      <circle r="18" fill="none" stroke="#C9A24B" stroke-width="2"/>
+    </symbol>
+  </defs>
+
+  <rect width="1000" height="600" fill="url(#scene)"/>
+
+  <!-- window shadow (T.panel: three stacked rects) -->
+  <rect x="28" y="28" width="584" height="548" rx="22" fill="#000" opacity="0.07"/>
+  <rect x="32" y="32" width="576" height="540" rx="18" fill="#000" opacity="0.16"/>
+  <rect x="36" y="36" width="568" height="532" rx="14" fill="#000" opacity="0.35"/>
+
+  <!-- window -->
+  <rect x="40" y="40" width="560" height="524" rx="10" fill="url(#win)"/>
+  <rect x="40" y="40" width="560" height="90" rx="10" fill="url(#sheen)"/>
+  <rect x="40.5" y="40.5" width="559" height="523" rx="10" fill="none" stroke="#8C6F3A" stroke-opacity="0.85"/>
+
+  <g font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+    <!-- header -->
+    <use href="#portrait" x="58" y="54" width="40" height="40"/>
+    <text x="110" y="72" font-family="'Friz Quadrata', 'Friz Quadrata TT', Optima, Candara, Georgia, serif" font-size="16" fill="#FFD100">wai</text>
+    <circle cx="114" cy="86" r="3" fill="#1EFF00"/>
+    <text x="122" y="90" font-size="11" fill="#9298A3">Ready · Arathi Highlands</text>
+    <rect x="432.5" y="60.5" width="84" height="26" rx="6" fill="#141922" stroke="#262C36"/>
+    <text x="474.5" y="78" text-anchor="middle" font-family="'Friz Quadrata', Optima, Candara, Georgia, serif" font-size="11" fill="#ECE6D6">New Chat</text>
+    <circle cx="538" cy="73.5" r="12" fill="#141922" stroke="#262C36"/>
+    <circle cx="538" cy="73.5" r="4" fill="none" stroke="#9298A3" stroke-width="1.6"/>
+    <g stroke="#9298A3" stroke-width="1.6" stroke-linecap="round">
+      <line x1="538" y1="65" x2="538" y2="67.5"/><line x1="538" y1="79.5" x2="538" y2="82"/>
+      <line x1="529.5" y1="73.5" x2="532" y2="73.5"/><line x1="544" y1="73.5" x2="546.5" y2="73.5"/>
+    </g>
+    <g stroke="#9298A3" stroke-width="1.6" stroke-linecap="round">
+      <line x1="570" y1="68" x2="580" y2="78"/><line x1="580" y1="68" x2="570" y2="78"/>
+    </g>
+
+    <!-- tabs -->
+    <rect x="40" y="104" width="560" height="1" fill="#262C36"/>
+    <rect x="52" y="106" width="152" height="30" fill="#FFD100" opacity="0.07"/>
+    <text x="64" y="125" font-family="'Friz Quadrata', Optima, Candara, Georgia, serif" font-size="12" fill="#FFD100">Hunter gold making</text>
+    <rect x="52" y="134" width="152" height="2" fill="#C9A24B"/>
+    <text x="220" y="125" font-family="'Friz Quadrata', Optima, Candara, Georgia, serif" font-size="12" fill="#9298A3">Pet talents</text>
+    <circle cx="304" cy="121" r="3.5" fill="#FFD100"/>
+    <text x="324" y="125" font-family="'Friz Quadrata', Optima, Candara, Georgia, serif" font-size="12" fill="#9298A3">Elite quest plan</text>
+    <circle cx="430" cy="121" r="3.5" fill="#3FA0FF"/>
+    <text x="452" y="126" font-size="16" fill="#9298A3">+</text>
+    <rect x="40" y="136" width="560" height="1" fill="url(#fade)"/>
+
+    <!-- your message: class-tinted bubble (hunter) -->
+    <rect x="292.5" y="156.5" width="290" height="38" rx="10" fill="#2A3326" stroke="#AAD372" stroke-opacity="0.45"/>
+    <text x="308" y="180" font-size="13" fill="#ECE6D6">Best way to make gold at 34 as a hunter?</text>
+
+    <!-- wai's reply -->
+    <use href="#portrait" x="56" y="210" width="30" height="30"/>
+    <rect x="96.5" y="210.5" width="486" height="148" rx="10" fill="#141922" stroke="#262C36"/>
+    <text x="112" y="232" font-family="'Friz Quadrata', Optima, Candara, Georgia, serif" font-size="12" fill="#FFD100">wai</text>
+    <text font-size="13" fill="#ECE6D6">
+      <tspan x="112" y="256">Skin the raptors around Stromgarde. Your pet tanks,</tspan>
+      <tspan x="112" y="276">and <tspan fill="#FFFFFF">[Heavy Leather]</tspan> moves fast on the auction house.</tspan>
+      <tspan x="112" y="296">With the pattern, <tspan fill="#1EFF00">[Hillman's Shoulders]</tspan> sell even better.</tspan>
+      <tspan x="112" y="316">Grab <tspan fill="#FFFF00">[Stromgarde Badges]</tspan> at Refuge Pointe on the way.</tspan>
+    </text>
+    <circle cx="117" cy="337" r="4" fill="#3FA0FF"/>
+    <text x="127" y="341" font-size="13" fill="#3FA0FF">Raptor Grounds · 48, 52</text>
+    <text x="290" y="341" font-size="11" fill="#5F6672">arrow set</text>
+
+    <!-- activity line -->
+    <circle cx="104" cy="383" r="3" fill="#C9A24B"/>
+    <circle cx="114" cy="383" r="3" fill="#C9A24B" opacity="0.6"/>
+    <circle cx="124" cy="383" r="3" fill="#C9A24B" opacity="0.3"/>
+    <text x="138" y="387" font-size="12" fill="#9298A3">Searching the web for heavy leather auction prices…</text>
+
+    <!-- attachment bar -->
+    <rect x="56.5" y="410.5" width="526" height="34" rx="8" fill="#141922" stroke="#262C36"/>
+    <text x="70" y="431" font-size="10" letter-spacing="1" fill="#8C6F3A">ASKING ABOUT</text>
+    <rect x="170" y="417" width="20" height="20" rx="3" fill="#4B3A22" stroke="#1EFF00" stroke-opacity="0.8"/>
+    <text x="198" y="432" font-size="13" fill="#1EFF00">[Hawkeye's Gloves]</text>
+    <g stroke="#9298A3" stroke-width="1.4" stroke-linecap="round">
+      <line x1="561" y1="423" x2="569" y2="431"/><line x1="569" y1="423" x2="561" y2="431"/>
+    </g>
+
+    <!-- input with focus glow -->
+    <rect x="40" y="440" width="560" height="80" fill="url(#focus)"/>
+    <rect x="56.5" y="456.5" width="526" height="40" rx="10" fill="#090B0F" stroke="#C9A24B"/>
+    <text x="72" y="481" font-size="13" fill="#ECE6D6">are these worth keeping?</text>
+    <rect x="236" y="469" width="1.5" height="16" fill="#ECE6D6"/>
+    <circle cx="563" cy="476.5" r="13" fill="#C9A24B"/>
+    <path d="M563 470 L563 483 M557.5 475.5 L563 470 L568.5 475.5" stroke="#1A1206" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- footer -->
+    <text x="58" y="538" font-size="11" fill="#5F6672">Alt-click anything to ask · /help</text>
+    <circle cx="489" cy="534" r="3" fill="#1EFF00"/>
+    <text x="498" y="538" font-size="11" fill="#9298A3">bridge ready</text>
+    <g stroke="#39414E" stroke-width="1.2">
+      <line x1="582" y1="552" x2="592" y2="542"/><line x1="587" y1="552" x2="592" y2="547"/>
+    </g>
+  </g>
+
+  <!-- waypoint arrow (waypoint.lua) -->
+  <g transform="translate(790 190)">
+    <circle r="60" fill="url(#halo)"/>
+    <circle r="29" fill="#0D1016" stroke="#C9A24B" stroke-width="2.5"/>
+    <path d="M0 -17 L12 11 L0 5 L-12 11 Z" fill="#FFD100" transform="rotate(-28)"/>
+    <text y="58" text-anchor="middle" font-family="'Friz Quadrata', Optima, Candara, Georgia, serif" font-size="14" fill="#FFD100">Raptor Grounds</text>
+    <text y="78" text-anchor="middle" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" fill="#9298A3">212 yd</text>
+  </g>
+
+  <!-- minimap button with working dot -->
+  <g transform="translate(790 410)">
+    <circle r="76" fill="#0B0F15" stroke="#39414E" stroke-width="2"/>
+    <circle r="72" fill="#18221A" opacity="0.6"/>
+    <g opacity="0.25" fill="#9298A3">
+      <circle cx="-20" cy="10" r="2"/><circle cx="14" cy="-24" r="2"/><circle cx="30" cy="22" r="2"/>
+    </g>
+    <path d="M0 -6 L5 6 L0 3 L-5 6 Z" fill="#ECE6D6"/>
+    <g transform="translate(56 -50)">
+      <circle r="24" fill="url(#halo)"/>
+      <use href="#portrait" x="-16" y="-16" width="32" height="32"/>
+      <circle cx="12" cy="-12" r="4.5" fill="#3FA0FF" stroke="#0D1016" stroke-width="1.5"/>
+    </g>
+  </g>
+  <text x="790" y="528" text-anchor="middle" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" letter-spacing="1.5" fill="#5F6672">ILLUSTRATION, NOT A SCREENSHOT</text>
+</svg>

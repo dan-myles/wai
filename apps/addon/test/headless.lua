@@ -60,6 +60,10 @@ _G.DEFAULT_CHAT_FRAME = new("Frame")
 local chatOut = {}
 function DEFAULT_CHAT_FRAME:AddMessage(m) chatOut[#chatOut + 1] = m end
 _G.TargetFrame = new("Button")
+_G.Minimap = new("Frame"); Minimap.w, Minimap.h = 140, 140
+function Minimap:GetEffectiveScale() return 1 end
+_G.GetCursorPosition = function() return _G.cursorX or 0, _G.cursorY or 0 end
+_G.IsShiftKeyDown = function() return _G.shift end
 _G.QuestFrame = new("Frame")
 _G.UISpecialFrames = {}
 _G.STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
@@ -457,6 +461,38 @@ assert(lastPayload() == 5, "check for updates sends kind 5")
 fire("SCREENSHOT_SUCCEEDED")
 ns.commands.run("/settings"); assert(not WaiSettings:IsShown(), "/settings toggles closed")
 print("settings ok")
+
+-- Minimap button: built at login; clicks open chat, settings, fun; drag saves an angle; the status
+-- dot follows busy/unread tabs; Settings can hide it.
+local mm = WaiMinimapButton
+assert(mm and mm:IsShown(), "minimap button shown")
+WaiFrame:Hide(); if WaiSettings then WaiSettings:Hide() end; if WaiFunMenu then WaiFunMenu:Hide() end
+mm.scripts.OnClick(mm, "LeftButton"); assert(WaiFrame:IsShown(), "left-click opens chat")
+mm.scripts.OnClick(mm, "LeftButton"); assert(not WaiFrame:IsShown(), "left-click closes chat")
+mm.scripts.OnClick(mm, "RightButton"); assert(WaiSettings:IsShown(), "right-click opens settings")
+_G.shift = true; mm.scripts.OnClick(mm, "RightButton"); _G.shift = false
+assert(WaiFunMenu:IsShown(), "shift-right-click opens fun")
+-- Drag: cursor straight above the minimap centre (GetCenter is 500,500 in the stub) = 90 degrees.
+_G.cursorX, _G.cursorY = 500, 600
+mm.scripts.OnDragStart(mm); mm.scripts.OnUpdate(mm, 0.01); mm.scripts.OnDragStop(mm)
+assert(math.abs(WaiDB.minimapAngle - 90) < 0.001, "drag saves the angle, got " .. tostring(WaiDB.minimapAngle))
+-- Status dot: a busy tab shows it.
+local badge
+for _, f in ipairs(frames) do if f.kind == "Texture" and f.parent and f.parent.parent == mm and f.w == 9 then badge = f end end
+WaiDB.outbox[#WaiDB.outbox + 1] = { seq = 999, tab = "main", who = "Backshot-Forever", text = "x" }
+mm.scripts.OnUpdate(mm, 0.3)
+assert(badge and badge:IsShown(), "status dot while busy")
+table.remove(WaiDB.outbox)
+for _, c in ipairs(ns.core.tabs()) do end
+-- Settings toggle hides it.
+local found
+for _, f in ipairs(frames) do if f.kind == "Button" and f.label and f.label.text == "Minimap button" then found = f end end
+assert(found, "minimap toggle in settings")
+found.scripts.OnClick(found)
+assert(ns.settings.get("minimap") == false and not mm:IsShown(), "toggle hides the button")
+found.scripts.OnClick(found)
+assert(mm:IsShown(), "toggle shows it again")
+print("minimap ok")
 
 -- Suggestions while typing.
 subjectInput:SetText("/re")

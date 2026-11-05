@@ -45,7 +45,7 @@ The repo is private, so sign in with the GitHub CLI first (`gh auth login`). The
 
 ## In game
 
-- `/wai` toggles the window (or bind a key: Key Bindings → AddOns). Commands: `/help`, `/new`, `/reload`, and `/fun` (a menu of toggles and test buttons for TikTok mode, killstreaks and video), `/settings` (typing speed, whispers, window positions; also the gear in the header). Everything else, just ask.
+- `/wai` toggles the window (or bind a key: Key Bindings → AddOns, or click the minimap button: right-click for settings, shift-right-click for fun). Commands: `/help`, `/new`, `/reload`, and `/fun` (a menu of toggles and test buttons for TikTok mode, killstreaks and video), `/settings` (typing speed, whispers, window positions; also the gear in the header). Everything else, just ask.
 - **Ask from anywhere:** Alt-click an item, a quest in your log, your target's portrait or a player's name in chat. Quest dialogs have an Ask wai button.
 - **Rich replies:** item, spell and quest links with tooltips, and blue pins that set wai's waypoint arrow.
 - **Memory and actions:** each character has its own conversation. Claude saves and forgets notes and sets the waypoint arrow itself, following [apps/cli/SKILL.md](apps/cli/SKILL.md), which is injected into every prompt.

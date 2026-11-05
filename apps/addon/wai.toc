@@ -2,7 +2,7 @@
 ## Title: wai
 ## Notes: Talk to Claude from inside the game. /wai
 ## Author: dan-myles
-## Version: 0.3.0
+## Version: 0.4.0
 ## Category: wai
 ## SavedVariables: WaiDB
 ## SavedVariablesPerCharacter: WaiCharDB
@@ -20,6 +20,7 @@ killstreak.lua
 video.lua
 fun.lua
 settings.lua
+minimap.lua
 ui.lua
 ModuleDefs.lua
 Generated.lua

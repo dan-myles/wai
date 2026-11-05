@@ -204,5 +204,6 @@ function settings.toggle()
     T.fadeIn(panel, 0.12)
 end
 
--- For later releases: add a section or an item without touching the panel code.
+-- For later releases: add a section or an item (and its default) without touching the panel code.
 settings.SECTIONS = SECTIONS
+settings.DEFAULTS = DEFAULTS

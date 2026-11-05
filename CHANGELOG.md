@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 (2026-11-05)
+
+A minimap button.
+
+- wai's portrait sits on the minimap ring. Left-click opens or closes the chat, right-click opens
+  Settings, shift-right-click opens the Fun menu.
+- Drag it anywhere around the ring; the spot is remembered.
+- A small dot shows what wai is up to: pulsing blue while it works, gold when a reply is waiting.
+- Hide it with **Minimap button** in `/settings`.
+
 ## 0.3.0 (2026-11-05)
 
 A settings menu.

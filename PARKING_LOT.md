@@ -7,16 +7,13 @@ Anonymous, opt-in usage and error reporting (off by default) to learn what break
 - Turned on and off with a toggle in the `/settings` menu (built in v0.3.0), plus a consent prompt the first time. A "see what's sent" view lives there too.
 - Never chat content or character names.
 
-## Minimap button
-A round wai portrait button on the minimap ring (gold ring, arcane icon) that toggles the wai window: left-click opens/closes, right-click opens `/fun` or `/settings`, drag to move around the ring.
-- Built with wai's own primitives (no LibDBIcon or other addons). Can be hidden from `/settings`.
-
 ## Auto-updating tab titles
 Tabs are named once, from the first message ("best leveling route fo"). Instead, keep the title current as the conversation moves on.
 - Claude proposes a short title (2–4 words, e.g. "Hunter leveling route") on the first reply and refreshes it when the topic clearly shifts, through a `[[title:...]]` markup token (or a cheap separate summary call on the bridge).
 - Never overwrite a title the player renamed by hand (`auto` flag already tracks that). Animate the change subtly in the tab strip.
 
 ## Done
+- **Minimap button (v0.4.0):** wai's portrait on the minimap ring, built from wai's own primitives: left-click chat, right-click settings, shift-right-click fun, drag around the ring (angle saved), a status dot for working/unread, and a Settings toggle.
 - **Settings menu (v0.3.0):** `/settings` or the header gear opens a floating panel with grouped, data-driven settings: typing speed (new segmented control), whisper replies, killstreaks, reset window positions, and an About row with the version, bridge contact, Check for updates and Help. Later releases add their rows to `settings.SECTIONS`.
 - **Monorepo structure (v0.2.0):** syncfast's layout: Bun workspaces (`apps/cli`, `apps/addon`, `tooling/typescript|oxfmt|oxlint`) with a version catalog, Turborepo for checks, Task as the single entry point, mise pins, an `AGENTS.md` guide, oxfmt + oxlint (ultracite), and CI through a shared setup action.
 - **`wai` CLI with self-update (v0.1.0):** one binary per platform built with `bun build --compile`, release installers with SHA-256 checks, `wai install/run/update/status/logs/uninstall`, in-game `/update` with progress and an update-available banner, video tools on demand, and a GitHub Actions release pipeline.

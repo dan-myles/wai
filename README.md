@@ -51,7 +51,7 @@ The repo is private, so sign in with the GitHub CLI first (`gh auth login`). The
 - **Rich replies:** item, spell and quest links with tooltips, and blue pins that set wai's waypoint arrow.
 - **Memory and actions:** each character has its own conversation. Claude saves and forgets notes and sets the waypoint arrow itself, following [apps/cli/SKILL.md](apps/cli/SKILL.md), which is injected into every prompt.
 - **Context:** character, target, zone, quest log, recent chat, killstreak, and recent fights plus your last death from Blizzard's damage meter.
-- **Tabs:** up to 8 parallel chats per character, each its own Claude session, with a live activity line while Claude works.
+- **Tabs:** up to 8 parallel chats per character, each its own Claude session, with a live activity line while Claude works. Claude keeps each tab's title current; a name you give a tab sticks.
 - **Live UI:** ask for UI and Claude writes a module (`addon/ui/<name>.lua`) that appears in game within seconds, no reload.
 - **Killstreaks:** 11 kills without dying calls in the Chopper Gunner, and 25 drops a Nuke. Cosmetic only.
 - **Video:** "show me a guide for…" plays a pixel-art clip (yt-dlp + ffmpeg, up to 2 minutes, no sound). "Turn on TikTok mode" docks a looping vertical clip with captions and stream chat.

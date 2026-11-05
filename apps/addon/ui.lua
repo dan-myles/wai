@@ -378,6 +378,8 @@ local function renderTabs(list)
     for i, t in ipairs(list) do
         local b = tabButtons[i] or tabButton()
         tabButtons[i] = b
+        if b.shownName and b.shownName ~= t.name and b.state and b.state.id == t.id then b.flash = 1 end
+        b.shownName = t.name
         b.label:SetText(t.name)
         natural[i] = math.ceil(b.label:GetStringWidth()) + 22 + ((t.busy or t.unread) and 10 or 0)
         total = total + natural[i] + 4
@@ -425,6 +427,16 @@ local function buildTabs(header)
         t = t + elapsed
         for _, b in ipairs(tabButtons) do
             b.dot:SetAlpha(b.dot.pulse and (0.4 + 0.6 * math.abs(math.sin(t * 2.5))) or 1)
+            -- A retitled tab fades its new name in under a soft gold glow.
+            if b.flash then
+                b.flash = math.max(0, b.flash - elapsed * 1.25)
+                b.label:SetAlpha(1 - b.flash * 0.7)
+                b.bg:SetFill(alpha(C.gold, 0.04 + 0.16 * b.flash))
+                if b.flash == 0 then
+                    b.flash = nil
+                    paintTab(b, b:IsMouseOver())
+                end
+            end
         end
     end)
 

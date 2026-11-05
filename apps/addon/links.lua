@@ -98,10 +98,11 @@ function RENDER.tiktok(body)
     return "|cff8c6f3aTikTok mode " .. (body == "off" and "off" or "on") .. "|r"
 end
 
--- Stream chat lines only appear in the TikTok overlay.
+-- Stream chat lines only appear in the TikTok overlay; titles only in the tab strip.
 function RENDER.stream()
     return ""
 end
+RENDER.title = RENDER.stream
 
 function RENDER.forget(body)
     return "|cff8c6f3aForgot: " .. body .. "|r"
@@ -126,7 +127,7 @@ function links.render(text)
 end
 
 -- Actions the agent asked for in a finished reply, in order: { kind, body }.
-local ACTIONS = { remember = true, forget = true, setway = true, ui = true, tiktok = true, stream = true }
+local ACTIONS = { remember = true, forget = true, setway = true, ui = true, tiktok = true, stream = true, title = true }
 function links.actions(text)
     local list = {}
     for kind, body in text:gmatch("%[%[(%a+):([^%]]-)%]%]") do

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 (2026-11-05)
+
+Tab titles that keep up with the conversation.
+
+- Claude names a chat with a short title ("Hunter leveling route") on its first reply, and again when
+  the topic clearly changes. Background chats get retitled too.
+- A name you give a tab yourself (double-click to rename) is never replaced.
+- New titles fade in with a soft gold glow.
+- Fix: names taken from a first message no longer end in a stray space.
+
 ## 0.5.0 (2026-11-05)
 
 Opt-in, anonymous error reports. Off until you turn them on.

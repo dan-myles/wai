@@ -2,12 +2,10 @@
 
 Ideas we're not working on yet. Each needs a feasibility check first.
 
-## Auto-updating tab titles
-Tabs are named once, from the first message ("best leveling route fo"). Instead, keep the title current as the conversation moves on.
-- Claude proposes a short title (2–4 words, e.g. "Hunter leveling route") on the first reply and refreshes it when the topic clearly shifts, through a `[[title:...]]` markup token (or a cheap separate summary call on the bridge).
-- Never overwrite a title the player renamed by hand (`auto` flag already tracks that). Animate the change subtly in the tab strip.
+Nothing is open right now.
 
 ## Done
+- **Auto-updating tab titles (v0.6.0):** Claude titles a chat with a hidden `[[title:…]]` on its first reply and again when the topic shifts; the context tells it the current title and whether the player named the tab; hand-named tabs never change; new titles fade in with a gold glow.
 - **Opt-in telemetry (v0.5.0):** off by default; a one-time consent banner and a Privacy section in `/settings` (switch plus "See what's sent"); scrubbed Lua errors and stalled streams from the addon plus bridge errors; `wai telemetry on|off|show|url`; and a validating collector in `apps/telemetry`. Documented in docs/TELEMETRY.md.
 - **Minimap button (v0.4.0):** wai's portrait on the minimap ring, built from wai's own primitives: left-click chat, right-click settings, shift-right-click fun, drag around the ring (angle saved), a status dot for working/unread, and a Settings toggle.
 - **Settings menu (v0.3.0):** `/settings` or the header gear opens a floating panel with grouped, data-driven settings: typing speed (new segmented control), whisper replies, killstreaks, reset window positions, and an About row with the version, bridge contact, Check for updates and Help. Later releases add their rows to `settings.SECTIONS`.

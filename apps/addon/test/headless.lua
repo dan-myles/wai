@@ -537,6 +537,40 @@ for _, f in ipairs(frames) do if f.kind == "Button" and f.label and f.label.text
 assert(#texts("Never your chats, quests or names") == 1, "see what's sent explains it")
 print("telemetry ok")
 
+-- Tab titles: a reply's [[title:..]] retitles its own tab (hidden from the text, animated), never a
+-- tab the player named; the context tells Claude the title and whether it may change it.
+ns.core.newTab()
+local titled = ns.core.tabs()[#ns.core.tabs()]
+SlashCmdList.WAI("whats the best way to level a hunter from 12 to 20")
+local sent = WaiDB.outbox[#WaiDB.outbox]
+assert(sent.ctx:find('chat title: "whats the best way to" %(you can retitle it%)'), "context offers the title: " .. sent.ctx:match("chat title[^\n]*"))
+fire("SCREENSHOT_SUCCEEDED")
+ns.core.switchTab("main") -- the reply arrives while another tab is open
+slotData.default = { who = "Backshot-Forever", beat = 80, chats = {
+  [titled.id] = { ackSeq = sent.seq, busy = false, messages = { { id = 50, role = "assistant", text = "[[title:Hunter leveling route]]Head to Westfall first.", done = true, at = 50 } } },
+} }
+now = now + 2; __ticker.fn(); tick(0.01)
+local function tabNamed(id) for _, t in ipairs(ns.core.tabs()) do if t.id == id then return t.name end end end
+assert(tabNamed(titled.id) == "Hunter leveling route", "retitled in the background: " .. tostring(tabNamed(titled.id)))
+ns.core.switchTab(titled.id); tick(0.01)
+assert(#texts("Head to Westfall first.") >= 1 and #texts("%[%[title") == 0, "title token hidden")
+local flashing = false
+for _, f in ipairs(frames) do if f.kind == "Button" and f.flash then flashing = true end end
+assert(flashing, "the new title animates in")
+tick(0.05, 1)
+-- A tab the player renamed keeps its name.
+ns.core.renameTab(titled.id, "My route")
+SlashCmdList.WAI("and after 20?")
+sent = WaiDB.outbox[#WaiDB.outbox]
+assert(sent.ctx:find('chat title: "My route" %(named by the player; keep it%)'), "context says keep it")
+fire("SCREENSHOT_SUCCEEDED")
+slotData.default = { who = "Backshot-Forever", beat = 81, chats = {
+  [titled.id] = { ackSeq = sent.seq, busy = false, messages = { { id = 51, role = "assistant", text = "[[title:Hunter 20 to 30]]Then Redridge.", done = true, at = 51 } } },
+} }
+now = now + 2; __ticker.fn(); tick(0.01)
+assert(tabNamed(titled.id) == "My route", "manual name kept")
+print("tab titles ok")
+
 -- Suggestions while typing.
 subjectInput:SetText("/re")
 assert(#texts("^/reload") >= 1 and #texts("^/remember") == 0, "suggestions")

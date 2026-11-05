@@ -243,7 +243,8 @@ end
 -- Assembly --------------------------------------------------------------------------------------
 
 -- subject: optional { details = "..." } for whatever the player alt-clicked or attached.
-function context.collect(subject)
+-- tab: the chat this message is for ({ name, manual }), so Claude can title it.
+function context.collect(subject, tab)
     local lines = {}
     local function add(key, fn)
         local ok, value = pcall(fn)
@@ -254,6 +255,10 @@ function context.collect(subject)
             UnitLevel("player"), UnitRace("player"), UnitClass("player"))
     end)
     add("subject", function() return subject and subject.details end)
+    add("chat title", function()
+        if not tab then return nil end
+        return ("%q %s"):format(tab.name, tab.manual and "(named by the player; keep it)" or "(you can retitle it)")
+    end)
     add("remember", function()
         local notes = context.notes()
         return #notes > 0 and table.concat(notes, "; ") or nil

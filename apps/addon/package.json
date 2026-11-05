@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@wai/addon",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "description": "The wai World of Warcraft addon (Lua). Tests run headless against a stub of the WoW API.",
   "scripts": {

@@ -171,6 +171,13 @@ local function capture(m)
             ns.context.remember(a.body)
         elseif a.kind == "forget" then
             ns.context.forget(a.body)
+        elseif a.kind == "title" then
+            -- Retitle this reply's tab unless the player named it themselves.
+            local tab = findTab(m.tab)
+            local title = strtrim(ns.links.plainGlyphs(a.body)):sub(1, 24)
+            if tab and not tab.manual and title ~= "" then
+                tab.name, tab.auto = title, nil
+            end
         elseif a.kind == "tiktok" then
             ns.video.setTikTok(a.body ~= "off")
         elseif a.kind == "stream" then
@@ -204,7 +211,7 @@ local function merge(tab, snap, live)
             c.byId[m.id] = cur
             c.messages[#c.messages + 1] = cur
         end
-        cur.role, cur.text, cur.done = m.role, m.text or "", m.done
+        cur.role, cur.text, cur.done, cur.tab = m.role, m.text or "", m.done, tab
         if not live or cur.role ~= "assistant" or not visible or ns.settings.get("typing") == "instant" then cur.shown = #cur.text end
         cur.shown = math.min(cur.shown, #cur.text)
         capture(cur)
@@ -469,11 +476,11 @@ function core.send(msg, subject)
     if tab and tab.auto then
         -- Name a fresh tab after its first message.
         local title = ns.context.plain(msg):gsub("%[%[.-%]%]", ""):gsub("%s+", " ")
-        tab.name = strtrim(title):sub(1, 22)
+        tab.name = strtrim(strtrim(title):sub(1, 22))
         tab.auto = nil
     end
     if subject and subject.ref ~= "" then msg = msg .. "  " .. subject.ref end
-    enqueue({ kind = "chat", text = msg, ctx = ns.context.collect(subject) })
+    enqueue({ kind = "chat", text = msg, ctx = ns.context.collect(subject, tab) })
 end
 
 function core.reset()
@@ -547,6 +554,7 @@ function core.renameTab(id, name)
     if not tab or name == "" then return end
     tab.name = name:sub(1, 24)
     tab.auto = nil
+    tab.manual = true -- the player's name sticks; wai won't retitle this tab
     changed()
 end
 

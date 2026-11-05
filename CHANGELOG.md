@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.3-nightly.5 (2026-11-05)
+
+- Fix: in `/settings`, the Open wai hint no longer runs under the key button. Keys read the way
+  WoW writes them ("Ctrl-`" instead of "CTRL-`").
+
 ## 0.9.3-nightly.4 (2026-11-05)
 
 - **Wowhead's Forever database is wai's primary source.** Before answering about a specific

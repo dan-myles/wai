@@ -717,6 +717,13 @@ if not WaiSettings:IsShown() then ns.commands.run("/settings") end
 local keyButton
 for _, f in ipairs(frames) do if f.kind == "Button" and f.label and f.label.text == "Not set" and f.scripts.OnKeyDown then keyButton = f end end
 assert(keyButton, "the Open wai row shows Not set")
+local hintClear = false
+for _, f in ipairs(frames) do
+  if f.kind == "FontString" and f.text == "Opens and closes the chat" then
+    for _, pt in ipairs(f.points or {}) do if pt[1] == "RIGHT" and pt[2] == keyButton then hintClear = true end end
+  end
+end
+assert(hintClear, "the hint stops at the key button")
 keyButton.scripts.OnClick(keyButton, "LeftButton")
 assert(keyButton.label.text == "Press a key…", "waits for a key")
 keyButton.scripts.OnKeyDown(keyButton, "LCTRL")
@@ -725,7 +732,7 @@ keyButton.scripts.OnKeyDown(keyButton, "ESCAPE")
 assert(keyButton.label.text == "Not set" and next({ GetBindingKey("WAI_TOGGLE") }) == nil, "Esc cancels")
 keyButton.scripts.OnClick(keyButton, "LeftButton")
 _G.ctrl = true; keyButton.scripts.OnKeyDown(keyButton, "Y"); _G.ctrl = false
-assert(bindings["CTRL-Y"] == "WAI_TOGGLE" and keyButton.label.text == "CTRL-Y" and _G.savedBindingSet == 2, "binds and saves")
+assert(bindings["CTRL-Y"] == "WAI_TOGGLE" and keyButton.label.text == "Ctrl-Y" and _G.savedBindingSet == 2, "binds and saves")
 keyButton.scripts.OnClick(keyButton, "LeftButton")
 keyButton.scripts.OnKeyDown(keyButton, "W")
 assert(bindings.W == "WAI_TOGGLE" and bindings["CTRL-Y"] == nil, "a new key replaces wai's old one")

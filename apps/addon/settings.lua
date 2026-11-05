@@ -55,10 +55,13 @@ end
 local BINDING = "WAI_TOGGLE" -- declared in Bindings.xml; also under Key Bindings > AddOns
 local MODIFIERS = { LSHIFT = true, RSHIFT = true, LCTRL = true, RCTRL = true, LALT = true, RALT = true, LMETA = true, RMETA = true }
 
+-- "CTRL-SHIFT-W" -> "Ctrl-Shift-W"; named keys ("NUMPAD1") use the client's own label.
 local function keyText(key)
     if not key then return "Not set" end
-    local ok, text = pcall(GetBindingText, key) -- "CTRL-W" -> "Ctrl-W"
-    return ok and text and text ~= "" and text or key
+    local mods, base = key:match("^(.-)([^-]+)$")
+    local ok, label = pcall(GetBindingText, base)
+    if not (ok and label and label ~= "") then label = base end
+    return mods:gsub("CTRL%-", "Ctrl-"):gsub("ALT%-", "Alt-"):gsub("SHIFT%-", "Shift-"):gsub("META%-", "Cmd-") .. label
 end
 
 -- Binds `key` (nil clears) to toggling wai in place of wai's old keys. Returns what that key did
@@ -81,13 +84,18 @@ end
 local function keybindRow(parent, item)
     local row = CreateFrame("Frame", nil, parent)
     row:SetHeight(40)
+    local button = T.button(row, "outline", "Not set", { width = 112, height = 26, radius = 6, size = 11 })
+    button:SetPoint("RIGHT", 0, 2)
+    -- Label and hint stop short of the button instead of running under it.
     local label = T.label(row, "regular", 13, C.text)
     label:SetPoint("TOPLEFT", 0, -3)
+    label:SetPoint("RIGHT", button, "LEFT", -10, 0)
+    label:SetWordWrap(false)
     label:SetText(item.label)
     local hint = T.label(row, "regular", 11, C.muted)
     hint:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -4)
-    local button = T.button(row, "outline", "Not set", { width = 112, height = 26, radius = 6, size = 11 })
-    button:SetPoint("RIGHT", 0, 2)
+    hint:SetPoint("RIGHT", button, "LEFT", -10, 0)
+    hint:SetWordWrap(false)
     button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     local capturing, message
 
@@ -111,7 +119,7 @@ local function keybindRow(parent, item)
         if mouse == "RightButton" then return finish(nil) end
         capturing, message = true, nil
         button.label:SetText("Press a key…")
-        hint:SetText("Esc cancels  ·  right-click clears")
+        hint:SetText("Esc cancels · right-click clears")
         button:EnableKeyboard(true)
         -- Keep the key away from the game while choosing (otherwise W would also walk forward).
         if button.SetPropagateKeyboardInput then button:SetPropagateKeyboardInput(false) end
@@ -136,7 +144,7 @@ local SECTIONS = {
                 get = function() return ns.core.agent() end,
                 set = function(name) ns.core.setAgent(name) end,
             },
-            { kind = "keybind", label = "Open wai", hint = "A key that opens and closes the window" },
+            { kind = "keybind", label = "Open wai", hint = "Opens and closes the chat" },
             {
                 kind = "segmented", key = "typing", label = "Typing speed", hint = "How replies appear",
                 options = { { "instant", "Instant" }, { "fast", "Fast" }, { "normal", "Normal" } },

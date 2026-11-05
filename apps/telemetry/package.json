@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@wai/telemetry",
-  "version": "0.9.3-nightly.4",
+  "version": "0.9.3-nightly.5",
   "private": true,
   "type": "module",
   "description": "Collector for wai's opt-in error reports: validates batches and appends them to a JSONL file.",

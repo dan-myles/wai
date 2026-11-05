@@ -21,7 +21,12 @@ jobs:
         run: apps/cli/dist/wai-linux-x64 version
       - name: Release notes from CHANGELOG.md
         run: awk -v v="${GITHUB_REF_NAME#v}" '/^## /{p = index($0, "## " v " ") == 1 || $0 == "## " v} p' CHANGELOG.md > notes.md
+      # Tags with a suffix (v0.9.3-nightly.1) are prereleases: only the nightly track sees them, and
+      # /releases/latest (stable updates, the install scripts) skips them.
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" apps/cli/dist/* --title "wai ${GITHUB_REF_NAME#v}" --notes-file notes.md
+        run: |
+          pre=""
+          case "$GITHUB_REF_NAME" in *-*) pre="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" apps/cli/dist/* $pre --title "wai ${GITHUB_REF_NAME#v}" --notes-file notes.md

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.3-nightly.1 (2026-11-05)
+
+The first nightly build.
+
+- **Pick a key to open wai** in `/settings` → Open wai: click, then press a key or combination.
+  It replaces wai's previous key, says what that key used to do, and saves with your bindings.
+  Esc cancels and right-click clears. It's the same binding as Key Bindings → AddOns.
+- **Update tracks.** `/settings` → Updates switches between Stable and Nightly (or `wai track
+  stable|nightly`). Nightly builds are GitHub prereleases with new features first. Stable updates
+  and the install scripts never see them. A release always counts as newer than its own
+  nightlies, so nightly players move onto it when it ships.
+- Releases tagged with a suffix (`v0.9.3-nightly.1`) are published as prereleases.
+
 ## 0.9.2 (2026-11-05)
 
 - Right-clicking a chat tab no longer closes it. It opens a small menu with Rename and Delete.

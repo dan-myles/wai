@@ -136,13 +136,13 @@ gh api repos/dan-myles/wai/contents/install.sh -H "Accept: application/vnd.githu
 
 ## In game
 
-`/wai` opens the window. You can also bind a key (Key Bindings → AddOns) or click the minimap button.
+`/wai` opens the window. You can also set a key in `/settings` → Open wai, or click the minimap button.
 
 | Command | |
 |---|---|
 | `/help` | what wai can do |
 | `/new` | start a fresh conversation in this tab |
-| `/settings` | agent (Claude or Codex), typing speed, whisper replies, killstreaks, privacy, window positions (or the ⚙ in the header) |
+| `/settings` | agent (Claude or Codex), a key to open wai, typing speed, whisper replies, killstreaks, privacy, window positions, stable or nightly updates (or the ⚙ in the header) |
 | `/fun` | toggles and test buttons for TikTok mode, killstreaks and video |
 | `/update` | update wai without leaving the game |
 | `/reload` | reload the UI |
@@ -197,6 +197,7 @@ flowchart LR
 | `wai status` | check everything wai needs (alias `doctor`) |
 | `wai logs [-f]` | show or follow the bridge log |
 | `wai agent [claude\|codex]` | show or choose which agent answers |
+| `wai track [stable\|nightly]` | show or choose the update track |
 | `wai proxy [on\|off\|<url>] [--key k] [--model m]` | send both agents through [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) or another gateway |
 | `wai telemetry [on\|off\|show\|url <url>]` | anonymous error reports |
 | `wai uninstall [--purge]` | remove wai from WoW and login items |

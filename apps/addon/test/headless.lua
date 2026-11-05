@@ -76,6 +76,16 @@ _G.hooksecurefunc = function(a, b, c) if type(a) == "table" then local old = a[b
 _G.HandleModifiedItemClick = function() end
 _G.SetItemRef = function(link) _G.lastItemRef = link end
 _G.IsAltKeyDown = function() return _G.alt end
+_G.IsControlKeyDown = function() return _G.ctrl end
+-- Key bindings: key -> action, like the client's binding set.
+local bindings = { W = "MOVEFORWARD" }
+_G.BINDING_NAME_MOVEFORWARD = "Move Forward"
+_G.GetBindingKey = function(action) local keys = {}; for k, v in pairs(bindings) do if v == action then keys[#keys + 1] = k end end; table.sort(keys); return unpack(keys) end
+_G.SetBinding = function(key, action) bindings[key] = action end
+_G.GetBindingAction = function(key) return bindings[key] or "" end
+_G.GetBindingText = function(key) return key end
+_G.GetCurrentBindingSet = function() return 2 end
+_G.SaveBindings = function(set) _G.savedBindingSet = set end
 _G.Ambiguate = function(n) return (n:gsub("%-.*", "")) end
 _G.issecretvalue = function(v) return v == "SECRET" end
 _G.GetPhysicalScreenSize = function() return 2560, 1440 end
@@ -696,6 +706,49 @@ outside.scripts.OnClick(outside, "LeftButton")
 assert(not WaiTabMenu:IsShown() and not outside.shown, "a click outside closes the menu")
 assert(#ns.core.tabs() == before - 1, "closing the menu changes nothing")
 print("tab menu ok")
+
+-- Keybind: click the key button in /settings, press a combo; it replaces wai's old key, says what
+-- the new key used to do, and saves. Modifiers alone wait; Esc cancels; right-click clears.
+if not WaiSettings:IsShown() then ns.commands.run("/settings") end
+local keyButton
+for _, f in ipairs(frames) do if f.kind == "Button" and f.label and f.label.text == "Not set" and f.scripts.OnKeyDown then keyButton = f end end
+assert(keyButton, "the Open wai row shows Not set")
+keyButton.scripts.OnClick(keyButton, "LeftButton")
+assert(keyButton.label.text == "Press a key…", "waits for a key")
+keyButton.scripts.OnKeyDown(keyButton, "LCTRL")
+assert(keyButton.label.text == "Press a key…", "a modifier alone isn't a key")
+keyButton.scripts.OnKeyDown(keyButton, "ESCAPE")
+assert(keyButton.label.text == "Not set" and next({ GetBindingKey("WAI_TOGGLE") }) == nil, "Esc cancels")
+keyButton.scripts.OnClick(keyButton, "LeftButton")
+_G.ctrl = true; keyButton.scripts.OnKeyDown(keyButton, "Y"); _G.ctrl = false
+assert(bindings["CTRL-Y"] == "WAI_TOGGLE" and keyButton.label.text == "CTRL-Y" and _G.savedBindingSet == 2, "binds and saves")
+keyButton.scripts.OnClick(keyButton, "LeftButton")
+keyButton.scripts.OnKeyDown(keyButton, "W")
+assert(bindings.W == "WAI_TOGGLE" and bindings["CTRL-Y"] == nil, "a new key replaces wai's old one")
+assert(#texts("^Replaced Move Forward$") == 1, "says what the key used to do")
+_G.inCombat = true
+keyButton.scripts.OnClick(keyButton, "LeftButton"); keyButton.scripts.OnKeyDown(keyButton, "K")
+assert(bindings.K == nil and #texts("can't change in combat") == 1, "locked in combat")
+_G.inCombat = false
+keyButton.scripts.OnClick(keyButton, "RightButton")
+assert(bindings.W == nil and keyButton.label.text == "Not set", "right-click clears")
+print("keybind ok")
+
+-- Update track: Nightly in /settings goes to the bridge on a ping ("u=nightly"); the bridge's
+-- snapshot has the final say.
+assert(ns.core.track() == "stable", "stable by default")
+clickText("Nightly")
+parts = fullPayload()
+assert(parts[5]:find(";u=nightly$"), "the switch carries the track: " .. parts[5])
+assert(ns.core.track() == "nightly", "shown right away")
+fire("SCREENSHOT_SUCCEEDED")
+slotData.default = { who = "Backshot-Forever", beat = 120, track = "nightly", chats = { [ns.core.tabs()[1].id] = { ackSeq = WaiDB.seq, busy = false, messages = {} } } }
+now = now + 2; __ticker.fn(); tick(0.01)
+assert(ns.core.track() == "nightly", "bridge confirms")
+slotData.default = { who = "Backshot-Forever", beat = 121, track = "stable", chats = {} }
+now = now + 2; __ticker.fn(); tick(1.1, 1)
+assert(ns.core.track() == "stable", "the bridge's answer wins")
+print("track ok")
 
 -- Suggestions while typing.
 subjectInput:SetText("/re")

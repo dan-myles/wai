@@ -51,6 +51,82 @@ local function version()
     return get and get("wai", "Version") or "?"
 end
 
+-- Key binding ------------------------------------------------------------------------------------
+
+local BINDING = "WAI_TOGGLE" -- declared in Bindings.xml; also under Key Bindings > AddOns
+local MODIFIERS = { LSHIFT = true, RSHIFT = true, LCTRL = true, RCTRL = true, LALT = true, RALT = true, LMETA = true, RMETA = true }
+
+local function keyText(key)
+    if not key then return "Not set" end
+    local ok, text = pcall(GetBindingText, key) -- "CTRL-W" -> "Ctrl-W"
+    return ok and text and text ~= "" and text or key
+end
+
+-- Binds `key` (nil clears) to toggling wai in place of wai's old keys. Returns what that key did
+-- before, or an error. Bindings are locked in combat.
+local function bind(key)
+    if InCombatLockdown() then return nil, "Key bindings can't change in combat." end
+    for _, old in ipairs({ GetBindingKey(BINDING) }) do SetBinding(old) end
+    local replaced
+    if key then
+        local action = GetBindingAction(key)
+        if action and action ~= "" and action ~= BINDING then replaced = _G["BINDING_NAME_" .. action] or action end
+        SetBinding(key, BINDING)
+    end
+    SaveBindings(GetCurrentBindingSet())
+    return replaced
+end
+
+-- Label and hint on the left, the current key on the right. Click, then press a key (with any
+-- modifiers); Esc cancels and right-click clears.
+local function keybindRow(parent, item)
+    local row = CreateFrame("Frame", nil, parent)
+    row:SetHeight(40)
+    local label = T.label(row, "regular", 13, C.text)
+    label:SetPoint("TOPLEFT", 0, -3)
+    label:SetText(item.label)
+    local hint = T.label(row, "regular", 11, C.muted)
+    hint:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -4)
+    local button = T.button(row, "outline", "Not set", { width = 112, height = 26, radius = 6, size = 11 })
+    button:SetPoint("RIGHT", 0, 2)
+    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    local capturing, message
+
+    function row:Refresh()
+        if capturing then return end
+        button.label:SetText(keyText((GetBindingKey(BINDING))))
+        hint:SetText(message or item.hint)
+    end
+    local function stop()
+        capturing = false
+        button:EnableKeyboard(false)
+        row:Refresh()
+    end
+    local function finish(key)
+        local replaced, err = bind(key)
+        message = err or (replaced and ("Replaced " .. replaced)) or nil
+        stop()
+    end
+
+    button:SetScript("OnClick", ns.core.guard(function(_, mouse)
+        if mouse == "RightButton" then return finish(nil) end
+        capturing, message = true, nil
+        button.label:SetText("Press a key…")
+        hint:SetText("Esc cancels  ·  right-click clears")
+        button:EnableKeyboard(true)
+        -- Keep the key away from the game while choosing (otherwise W would also walk forward).
+        if button.SetPropagateKeyboardInput then button:SetPropagateKeyboardInput(false) end
+    end))
+    button:SetScript("OnKeyDown", ns.core.guard(function(_, key)
+        if not capturing or MODIFIERS[key] then return end
+        if key == "ESCAPE" then return stop() end
+        -- WoW's own order: ALT-CTRL-SHIFT-KEY.
+        finish((IsAltKeyDown() and "ALT-" or "") .. (IsControlKeyDown() and "CTRL-" or "") .. (IsShiftKeyDown() and "SHIFT-" or "") .. key)
+    end))
+    button:SetScript("OnHide", function() if capturing then stop() end end)
+    return row
+end
+
 local SECTIONS = {
     {
         title = "GENERAL",
@@ -61,6 +137,7 @@ local SECTIONS = {
                 get = function() return ns.core.agent() end,
                 set = function(name) ns.core.setAgent(name) end,
             },
+            { kind = "keybind", label = "Open wai", hint = "A key that opens and closes the window" },
             {
                 kind = "segmented", key = "typing", label = "Typing speed", hint = "How replies appear",
                 options = { { "instant", "Instant" }, { "fast", "Fast" }, { "normal", "Normal" } },
@@ -92,6 +169,12 @@ local SECTIONS = {
     {
         title = "ABOUT",
         items = {
+            {
+                kind = "segmented", label = "Updates", hint = "Nightly gets new features first",
+                options = { { "stable", "Stable" }, { "nightly", "Nightly" } },
+                get = function() return ns.core.track() end,
+                set = function(name) ns.core.setTrack(name) end,
+            },
             { kind = "about" },
             { kind = "buttons", buttons = {
                 { "Check for updates", function() ns.core.requestUpdate() end },
@@ -165,6 +248,9 @@ local function build()
                 local get, set = accessors(item)
                 local make = item.kind == "toggle" and T.toggle or T.segmented
                 row = make(panel, { label = item.label, hint = item.hint, options = item.options, get = get, set = set })
+                rows[#rows + 1] = row
+            elseif item.kind == "keybind" then
+                row = keybindRow(panel, item)
                 rows[#rows + 1] = row
             elseif item.kind == "button" then
                 row = T.button(panel, "outline", item.label, { height = 30, radius = 8, size = 12, onClick = item.run })

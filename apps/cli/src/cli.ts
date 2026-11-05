@@ -27,7 +27,7 @@ import { HOME, LOG_FILE, PID_FILE, writeConfig } from "./files"
 import { doctor, install, uninstall } from "./install"
 import { bridgePid, restart } from "./service"
 import { enabled, endpoint, flush, history, setConsent } from "./telemetry"
-import { update } from "./update"
+import { TRACKS, currentTrack, isTrack, update } from "./update"
 import { VERSION } from "./version"
 
 const HELP = `wai ${VERSION}: Claude or Codex inside World of Warcraft: Forever
@@ -40,6 +40,7 @@ Usage: wai <command>
   status                   check that everything wai needs is in place (alias: doctor)
   logs [-f]                show the bridge log, or follow it
   agent [claude|codex]     show or choose which agent answers (also /settings in game)
+  track [stable|nightly]   show or choose the update track (also /settings in game)
   proxy [on|off|<url>] [--key <key>] [--model <model>]
                            send both agents through an API gateway like CLIProxyAPI (on: ${DEFAULT_PROXY})
   uninstall [--purge]      remove wai from WoW and login items (--purge also deletes chats and settings)
@@ -238,6 +239,19 @@ try {
     }
     case "agent": {
       agent(args)
+      break
+    }
+    case "track": {
+      const [choice] = args
+      if (choice) {
+        if (!isTrack(choice)) {
+          throw new Error(
+            `unknown track "${choice}"; use ${TRACKS.join(" or ")}`,
+          )
+        }
+        writeConfig({ track: choice })
+      }
+      console.log(`update track: ${currentTrack()}`)
       break
     }
     case "proxy": {

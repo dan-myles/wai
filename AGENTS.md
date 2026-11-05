@@ -57,7 +57,8 @@ it works and docs/DESIGN.md for the visual language.
 - Releases: bump `apps/cli/package.json` and `apps/addon/wai.toc`, add a `CHANGELOG.md` section,
   run `task release:check VERSION=x.y.z`, then push a `vx.y.z` tag. GitHub Actions builds every
   platform and publishes the release; `wai update` picks it up. Each release bumps the patch number
-  (0.9.0, 0.9.1, 0.9.2...).
+  (0.9.0, 0.9.1, 0.9.2...). Nightlies are prereleases of the next patch (`v0.9.3-nightly.1`,
+  `-nightly.2`...): same steps, and only players on the nightly track get them.
 - Never open WoW from automation. Verify game-facing changes with the headless addon suite.
 - Use conventional commits, with scopes when they add clarity.
 - Never add `Co-authored-by` trailers for AI tools, assistants, bots, or model vendors unless explicitly requested.

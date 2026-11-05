@@ -5,6 +5,7 @@ Ideas we're not working on yet. Each needs a feasibility check first.
 Nothing is open right now.
 
 ## Done
+- **Keybind and update tracks (v0.9.3-nightly.1):** set the open key in `/settings`; Stable or Nightly updates there or with `wai track`, nightlies published as prereleases.
 - **Tab menu (v0.9.2):** right-click a tab for Rename / Delete (confirmed) instead of closing it.
 - **Macros (v0.9.1):** the agent creates, edits and deletes macros with a `[[macro:Name]]` block (character-specific by default, `:general` on request), sees the player's macros when they mention them, and waits out combat.
 - **Copy from chat (v0.9.0):** click a message to select its plain text in a read-only edit box, then Ctrl+C.

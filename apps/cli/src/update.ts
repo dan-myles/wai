@@ -2,7 +2,7 @@
 // script) replaces itself. Each release has one binary per platform plus SHA256SUMS.
 import { chmod, readFile, rename, rm, writeFile } from "node:fs/promises"
 
-import { COMPILED, INSTALL_RECORD } from "./files"
+import { COMPILED, INSTALL_RECORD, readConfig } from "./files"
 import { REPO, VERSION } from "./version"
 
 interface Release {
@@ -15,17 +15,37 @@ export function assetName(platform = process.platform, arch = process.arch) {
   return `wai-${os}-${arch === "arm64" ? "arm64" : "x64"}${platform === "win32" ? ".exe" : ""}`
 }
 
-// "0.10.0" > "0.9.3"
+// Stable gets GitHub's latest release; nightly gets the newest one, prereleases included
+// (tags like v0.9.3-nightly.1). Chosen in /settings or with `wai track`.
+export const TRACKS = ["stable", "nightly"] as const
+export type Track = (typeof TRACKS)[number]
+export const isTrack = (value: unknown): value is Track =>
+  TRACKS.includes(value as Track)
+export const currentTrack = (): Track =>
+  readConfig().track === "nightly" ? "nightly" : "stable"
+
+function parse(version: string) {
+  const [core = "", pre] = version.split("-")
+  return {
+    core: core.split(".").map(Number),
+    n: pre ? Number(pre.split(".").at(-1)) || 0 : undefined,
+  }
+}
+
+// "0.10.0" > "0.9.3" > "0.9.3-nightly.2" > "0.9.3-nightly.1" > "0.9.2"
 export function newer(a: string, b: string) {
-  const pa = a.split(".").map(Number)
-  const pb = b.split(".").map(Number)
+  const pa = parse(a)
+  const pb = parse(b)
   for (let i = 0; i < 3; i++) {
-    const [x, y] = [pa[i] ?? 0, pb[i] ?? 0]
+    const [x, y] = [pa.core[i] ?? 0, pb.core[i] ?? 0]
     if (x !== y) {
       return x > y
     }
   }
-  return false
+  if (pa.n === undefined || pb.n === undefined) {
+    return pa.n === undefined && pb.n !== undefined // the release beats its nightlies
+  }
+  return pa.n > pb.n
 }
 
 // The repo is private: use a token from the environment or the GitHub CLI.
@@ -52,24 +72,44 @@ function headers(accept: string) {
   }
 }
 
-export async function latestRelease(): Promise<Release> {
-  const res = await fetch(
-    `https://api.github.com/repos/${REPO}/releases/latest`,
-    { headers: headers("application/vnd.github+json") },
-  )
+interface GitHubRelease {
+  tag_name: string
+  draft?: boolean
+  assets: { name: string; url: string }[]
+}
+
+const toRelease = (body: GitHubRelease): Release => ({
+  assets: Object.fromEntries(body.assets.map((a) => [a.name, a.url])),
+  version: body.tag_name.replace(/^v/, ""),
+})
+
+export async function latestRelease(
+  track: Track = currentTrack(),
+): Promise<Release> {
+  // /releases/latest never returns a prerelease, so nightly reads the list and takes the newest.
+  const path = track === "nightly" ? "releases?per_page=30" : "releases/latest"
+  const res = await fetch(`https://api.github.com/repos/${REPO}/${path}`, {
+    headers: headers("application/vnd.github+json"),
+  })
   if (!res.ok) {
     throw new Error(
-      `couldn't read releases (${res.status}). The repo is private: sign in with \`gh auth login\` or set GITHUB_TOKEN.`,
+      `couldn't read releases (${res.status}). If you're offline or rate-limited, try again later.`,
     )
   }
-  const body = (await res.json()) as {
-    tag_name: string
-    assets: { name: string; url: string }[]
+  if (track === "stable") {
+    return toRelease((await res.json()) as GitHubRelease)
   }
-  return {
-    assets: Object.fromEntries(body.assets.map((a) => [a.name, a.url])),
-    version: body.tag_name.replace(/^v/, ""),
+  let best: Release | undefined
+  for (const body of (await res.json()) as GitHubRelease[]) {
+    const release = toRelease(body)
+    if (!body.draft && (!best || newer(release.version, best.version))) {
+      best = release
+    }
   }
+  if (!best) {
+    throw new Error("there are no releases yet")
+  }
+  return best
 }
 
 async function download(url: string) {
@@ -123,7 +163,11 @@ export async function update(
     }
   }
 
-  progress("Checking for updates…")
+  progress(
+    currentTrack() === "nightly"
+      ? "Checking for updates (nightly)…"
+      : "Checking for updates…",
+  )
   const release = await latestRelease()
   if (!newer(release.version, VERSION)) {
     return { updated: false, message: `wai ${VERSION} is up to date.` }

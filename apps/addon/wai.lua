@@ -30,6 +30,7 @@ local nextSlot, poll, pollTicker = 1, nil, nil
 local lastBeat, lastBeatAt = nil, 0
 local updateAvailable -- a newer wai release the bridge found
 local agent -- which agent the bridge answers with ("claude" | "codex")
+local track -- the bridge's update track ("stable" | "nightly")
 local contactAt -- when a live snapshot from the bridge last arrived
 local grid, gridBlocks, shots, shooting, savedFormat = nil, nil, {}, nil, nil
 local localId = 0
@@ -268,6 +269,7 @@ local function mergeSlot(slot)
     contactAt = GetTime()
     updateAvailable = slot.update and slot.update.version
     agent = slot.agent or agent
+    track = slot.track or track
     for tab, snap in pairs(slot.chats or {}) do merge(tab, snap, true) end
     ns.modules.sync(slot.modules)
     ns.video.sync(slot.video)
@@ -349,8 +351,8 @@ local function buildGrid()
     grid:Hide()
 end
 
--- The player's telemetry choice and the client build (and an agent switch, on the ping that asks
--- for it), plus queued reports if they opted in.
+-- The player's telemetry choice and the client build (and an agent or update-track switch, on the
+-- ping that asks for it), plus queued reports if they opted in.
 local function flagsTail(item)
     local choice = ns.settings.get("telemetry")
     local flags = choice == true and "t=1" or choice == false and "t=0" or ""
@@ -358,6 +360,7 @@ local function flagsTail(item)
     if GetBuildInfo then version, build = GetBuildInfo() end
     if version then flags = flags .. ";c=" .. version .. "." .. tostring(build) end
     if item.agent then flags = flags .. ";a=" .. item.agent end
+    if item.track then flags = flags .. ";u=" .. item.track end
     if choice ~= true then return "\0" .. flags .. "\0" end
     local lines = table.concat(reports, "\n")
     reports = {}
@@ -464,16 +467,31 @@ function core.agent()
     return agent or "claude"
 end
 
--- /settings: the bridge switches agents and confirms with a note in this chat.
-function core.setAgent(name)
-    if name == core.agent() then return end
-    agent = name -- shown right away; the bridge's next snapshot has the final say
+-- /settings choices the bridge owns go out on a ping; it confirms with a note in this chat.
+local function askBridge(fields)
     local c = chatFor(activeTab())
     c.busy = true -- keep polling until the bridge's note arrives
-    shots[#shots + 1] = encode({ kind = "ping", agent = name })
+    fields.kind = "ping"
+    shots[#shots + 1] = encode(fields)
     notice = nil
     shootNext()
     changed()
+end
+
+function core.setAgent(name)
+    if name == core.agent() then return end
+    agent = name -- shown right away; the bridge's next snapshot has the final say
+    askBridge({ agent = name })
+end
+
+function core.track()
+    return track or "stable"
+end
+
+function core.setTrack(name)
+    if name == core.track() then return end
+    track = name
+    askBridge({ track = name })
 end
 
 -- Public API ------------------------------------------------------------------------------------
@@ -624,6 +642,7 @@ events:SetScript("OnEvent", guard(function()
     lastBeat = data.beat
     updateAvailable = data.update and data.update.version
     agent = data.agent
+    track = data.track
     local prefix = who .. "#"
     for key, snap in pairs(data.chats or {}) do
         if key:sub(1, #prefix) == prefix then merge(key:sub(#prefix + 1), snap, false) end

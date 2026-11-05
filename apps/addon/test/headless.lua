@@ -716,7 +716,7 @@ print("tab menu ok")
 if not WaiSettings:IsShown() then ns.commands.run("/settings") end
 local keyButton
 for _, f in ipairs(frames) do if f.kind == "Button" and f.label and f.label.text == "Not set" and f.scripts.OnKeyDown then keyButton = f end end
-assert(keyButton, "the Open wai row shows Not set")
+assert(keyButton, "the Toggle wai row shows Not set")
 local hintClear = false
 for _, f in ipairs(frames) do
   if f.kind == "FontString" and f.text == "Opens and closes the chat" then
@@ -756,6 +756,20 @@ assert(subjectInput.text == "half a thought!", "typing afterwards works")
 subjectInput:SetText("")
 WaiToggle()
 assert(not WaiFrame:IsShown(), "the key closes wai again")
+-- While typing, bindings don't run: the input itself closes wai on the toggle key, keeping the draft.
+bindings["CTRL-`"] = "WAI_TOGGLE"
+WaiToggle(); now = now + 1
+subjectInput:SetText("draft")
+_G.ctrl = true; subjectInput.scripts.OnKeyDown(subjectInput, "`"); _G.ctrl = false
+subjectInput.text = "draft`"; subjectInput.scripts.OnChar(subjectInput, "`")
+assert(not WaiFrame:IsShown() and subjectInput.text == "draft", "the key closes wai from the input")
+subjectInput.scripts.OnKeyDown(subjectInput, "`")
+assert(not WaiFrame:IsShown(), "the plain key isn't the toggle")
+WaiToggle(); now = now + 1
+subjectInput.scripts.OnKeyDown(subjectInput, "`")
+assert(WaiFrame:IsShown(), "without Ctrl the input keeps typing")
+bindings["CTRL-`"] = nil
+subjectInput:SetText("")
 print("keybind ok")
 
 -- Update track: Nightly in /settings goes to the bridge on a ping ("u=nightly"); the bridge's

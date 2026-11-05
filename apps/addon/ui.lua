@@ -66,6 +66,9 @@ local function buildSelector()
         end
     end)
     selector:SetScript("OnEscapePressed", guard(endSelect))
+    selector:SetScript("OnKeyDown", guard(function(_, key)
+        if ns.settings.isToggleKey(key) then ui.toggleFromKey() end
+    end))
     selector:SetScript("OnEditFocusLost", guard(endSelect))
 end
 
@@ -912,6 +915,10 @@ local function buildComposer()
     input:SetTextColor(C.text[1], C.text[2], C.text[3])
     input:SetAutoFocus(false)
     input:SetMaxLetters(1000)
+    -- Key bindings don't run while you're typing, so the input closes wai on wai's own key itself.
+    input:SetScript("OnKeyDown", guard(function(_, key)
+        if ns.settings.isToggleKey(key) then ui.toggleFromKey() end
+    end))
     input:SetScript("OnChar", function(self)
         if GetTime() <= swallowUntil then
             self:SetText(draft)
@@ -1080,9 +1087,13 @@ function ui.toggle()
     if frame:IsShown() then frame:Hide() else ui.show(true) end
 end
 
--- The Open wai key binding (Bindings.xml): like toggle, without typing the key into the input.
+-- The Toggle wai key binding (Bindings.xml, or pressed in the input): like toggle, without typing
+-- the key's character into the input either way.
 function ui.toggleFromKey()
-    if frame:IsShown() then return frame:Hide() end
     draft, swallowUntil = input:GetText(), GetTime() + 0.15
+    if frame:IsShown() then
+        input:ClearFocus()
+        return frame:Hide()
+    end
     ui.show(true)
 end

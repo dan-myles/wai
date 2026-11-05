@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.3-nightly.7 (2026-11-05)
+
+- Fix: your wai key now closes the window as well as opening it, even while you're typing in
+  wai. WoW skips key bindings while a text box has the cursor, so wai watches for its own key
+  there. Your draft is kept and the key isn't typed.
+- The setting is now called "Toggle wai".
+
 ## 0.9.3-nightly.6 (2026-11-05)
 
 - Fix: opening wai with your key no longer types the key into the input (Ctrl-` used to leave a

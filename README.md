@@ -136,7 +136,7 @@ gh api repos/dan-myles/wai/contents/install.sh -H "Accept: application/vnd.githu
 
 ## In game
 
-`/wai` opens the window. You can also set a key in `/settings` → Open wai, or click the minimap button.
+`/wai` opens the window. You can also set a key in `/settings` → Toggle wai (it opens and closes the window), or click the minimap button.
 
 | Command | |
 |---|---|

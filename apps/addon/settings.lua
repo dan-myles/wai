@@ -64,6 +64,21 @@ local function keyText(key)
     return mods:gsub("CTRL%-", "Ctrl-"):gsub("ALT%-", "Alt-"):gsub("SHIFT%-", "Shift-"):gsub("META%-", "Cmd-") .. label
 end
 
+-- A key press as a binding string, in WoW's order (ALT-CTRL-SHIFT-KEY); nil for a modifier alone.
+function settings.combo(key)
+    if MODIFIERS[key] then return nil end
+    return (IsAltKeyDown() and "ALT-" or "") .. (IsControlKeyDown() and "CTRL-" or "") .. (IsShiftKeyDown() and "SHIFT-" or "") .. key
+end
+
+-- Whether a key press is wai's toggle key.
+function settings.isToggleKey(key)
+    local combo = settings.combo(key)
+    for _, bound in ipairs({ GetBindingKey(BINDING) }) do
+        if combo == bound then return true end
+    end
+    return false
+end
+
 -- Binds `key` (nil clears) to toggling wai in place of wai's old keys. Returns what that key did
 -- before, or an error. Bindings are locked in combat.
 local function bind(key)
@@ -127,8 +142,7 @@ local function keybindRow(parent, item)
     button:SetScript("OnKeyDown", ns.core.guard(function(_, key)
         if not capturing or MODIFIERS[key] then return end
         if key == "ESCAPE" then return stop() end
-        -- WoW's own order: ALT-CTRL-SHIFT-KEY.
-        finish((IsAltKeyDown() and "ALT-" or "") .. (IsControlKeyDown() and "CTRL-" or "") .. (IsShiftKeyDown() and "SHIFT-" or "") .. key)
+        finish(settings.combo(key))
     end))
     button:SetScript("OnHide", function() if capturing then stop() end end)
     return row
@@ -144,7 +158,7 @@ local SECTIONS = {
                 get = function() return ns.core.agent() end,
                 set = function(name) ns.core.setAgent(name) end,
             },
-            { kind = "keybind", label = "Open wai", hint = "Opens and closes the chat" },
+            { kind = "keybind", label = "Toggle wai", hint = "Opens and closes the chat" },
             {
                 kind = "segmented", key = "typing", label = "Typing speed", hint = "How replies appear",
                 options = { { "instant", "Instant" }, { "fast", "Fast" }, { "normal", "Normal" } },

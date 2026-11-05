@@ -680,7 +680,7 @@ events:SetScript("OnEvent", guard(function()
 end))
 
 function WaiToggle()
-    ns.ui.toggle()
+    ns.ui.toggleFromKey()
 end
 
 BINDING_HEADER_WAI = "wai"

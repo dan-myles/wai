@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.3-nightly.6 (2026-11-05)
+
+- Fix: opening wai with your key no longer types the key into the input (Ctrl-` used to leave a
+  "`"). A draft you'd left there stays as it was.
+
 ## 0.9.3-nightly.5 (2026-11-05)
 
 - Fix: in `/settings`, the Open wai hint no longer runs under the key button. Keys read the way

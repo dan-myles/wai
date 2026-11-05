@@ -26,6 +26,9 @@ local statusDot, statusText, hint
 local rows, pools = {}, {}
 local attachment -- subject from ns.ask, sent with the next message
 local suggestions, selected = {}, 1
+-- Opened by the key binding: the key's own character (Ctrl-` types "`") reaches the input in the
+-- same instant, so characters before this time are dropped, putting back the draft from before.
+local swallowUntil, draft = 0, ""
 
 -- Message rows ----------------------------------------------------------------------------------
 
@@ -909,6 +912,12 @@ local function buildComposer()
     input:SetTextColor(C.text[1], C.text[2], C.text[3])
     input:SetAutoFocus(false)
     input:SetMaxLetters(1000)
+    input:SetScript("OnChar", function(self)
+        if GetTime() <= swallowUntil then
+            self:SetText(draft)
+            self:SetCursorPosition(#draft)
+        end
+    end)
     input:SetScript("OnEnterPressed", guard(submit))
     input:SetScript("OnTabPressed", guard(function() complete() end))
     input:SetScript("OnEscapePressed", function(self)
@@ -1069,4 +1078,11 @@ end
 
 function ui.toggle()
     if frame:IsShown() then frame:Hide() else ui.show(true) end
+end
+
+-- The Open wai key binding (Bindings.xml): like toggle, without typing the key into the input.
+function ui.toggleFromKey()
+    if frame:IsShown() then return frame:Hide() end
+    draft, swallowUntil = input:GetText(), GetTime() + 0.15
+    ui.show(true)
 end

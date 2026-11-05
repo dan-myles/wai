@@ -743,6 +743,19 @@ assert(bindings.K == nil and #texts("can't change in combat") == 1, "locked in c
 _G.inCombat = false
 keyButton.scripts.OnClick(keyButton, "RightButton")
 assert(bindings.W == nil and keyButton.label.text == "Not set", "right-click clears")
+-- Opening wai with that key doesn't type the key's character (Ctrl-` would type "`").
+WaiFrame:Hide()
+subjectInput:SetText("half a thought")
+WaiToggle()
+assert(WaiFrame:IsShown(), "the key opens wai")
+subjectInput.text = "half a thought`"; subjectInput.scripts.OnChar(subjectInput, "`")
+assert(subjectInput.text == "half a thought", "the key's character is dropped, the draft kept")
+now = now + 1
+subjectInput.text = "half a thought!"; subjectInput.scripts.OnChar(subjectInput, "!")
+assert(subjectInput.text == "half a thought!", "typing afterwards works")
+subjectInput:SetText("")
+WaiToggle()
+assert(not WaiFrame:IsShown(), "the key closes wai again")
 print("keybind ok")
 
 -- Update track: Nightly in /settings goes to the bridge on a ping ("u=nightly"); the bridge's

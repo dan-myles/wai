@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.3-nightly.8 (2026-11-05)
+
+- Fix: with settings open, your wai key (and every other key, movement included) was swallowed by
+  the Toggle wai button. It now only listens while you're choosing a key.
+- Closing wai with settings open brings settings back the next time you open it. Settings you
+  closed stay closed.
+
 ## 0.9.3-nightly.7 (2026-11-05)
 
 - Fix: your wai key now closes the window as well as opening it, even while you're typing in

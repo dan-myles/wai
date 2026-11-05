@@ -145,6 +145,9 @@ local function keybindRow(parent, item)
         finish(settings.combo(key))
     end))
     button:SetScript("OnHide", function() if capturing then stop() end end)
+    -- Setting OnKeyDown turns keyboard input on, which would swallow every key (movement, wai's own
+    -- key) while settings are open. Only listen while choosing a key.
+    button:EnableKeyboard(false)
     return row
 end
 
@@ -314,11 +317,24 @@ local function build()
     end
     panel:SetHeight(-y + 6)
 
-    -- Docked to the chat window: it moves with it and closes with it.
+    -- Docked to the chat window: it moves with it, closes with it, and comes back with it if it was
+    -- open (for this session).
     hooksecurefunc(WaiFrame, "StopMovingOrSizing", function()
         if panel:IsShown() then dock() end
     end)
-    WaiFrame:HookScript("OnHide", function() panel:Hide() end)
+    local reopen = false
+    WaiFrame:HookScript("OnHide", function()
+        reopen = panel:IsShown()
+        panel:Hide()
+    end)
+    WaiFrame:HookScript("OnShow", function()
+        if not reopen then return end
+        reopen = false
+        dock()
+        for _, row in ipairs(rows) do row:Refresh() end
+        refreshAbout()
+        panel:Show()
+    end)
     local t = 0
     panel:SetScript("OnUpdate", function(_, elapsed)
         t = t + elapsed

@@ -52,6 +52,7 @@ function Obj:NumLines() return 2 end
 function Obj:SetColorTexture(r, g, b) self.color = { r, g, b } end
 function Obj:SetRotation(r) self.rotation = r end
 function Obj:SetHyperlinksEnabled(v) self.links = v end
+function Obj:EnableKeyboard(v) self.keyboard = v end
 function Obj:SetParent(p) self.parent = p end
 
 _G.CreateFrame = function(kind, name, parent) local f = new(kind, parent, name); if name then _G[name] = f end; if kind == "GameTooltip" then _G[name .. "TextLeft1"] = new("FontString"); _G[name .. "TextLeft1"].text = "Linen Cloth"; _G[name .. "TextLeft2"] = new("FontString"); _G[name .. "TextLeft2"].text = "|cff9d9d9dTrade Goods|r" end; return f end
@@ -862,6 +863,19 @@ WaiFrame:StopMovingOrSizing()
 p = WaiSettings.points[#WaiSettings.points]
 assert(p[1] == "TOPRIGHT" and p[2] == WaiFrame and p[3] == "TOPLEFT", "flips left near the screen edge")
 WaiFrame.GetRight, UIParent.GetRight = nil, nil
+-- The key button only takes the keyboard while choosing a key.
+local kb
+for _, f in ipairs(frames) do if f.kind == "Button" and f.scripts.OnKeyDown and f.keyboard ~= nil then kb = f end end
+assert(kb and kb.keyboard == false, "settings don't swallow keys")
+-- Closing the chat with settings open brings settings back next time; closed settings stay closed.
+assert(WaiSettings:IsShown())
+WaiToggle()
+assert(not WaiFrame:IsShown() and not WaiSettings:IsShown(), "the key closes both")
+WaiToggle()
+assert(WaiFrame:IsShown() and WaiSettings:IsShown(), "and reopens both")
+ns.settings.toggle()
+WaiToggle(); WaiToggle()
+assert(WaiFrame:IsShown() and not WaiSettings:IsShown(), "closed settings stay closed")
 print("settings dock ok")
 
 -- Suggestions while typing.

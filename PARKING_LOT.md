@@ -5,6 +5,7 @@ Ideas we're not working on yet. Each needs a feasibility check first.
 Nothing is open right now.
 
 ## Done
+- **Settings tabs (v0.9.3-nightly.9):** General / Fun / About; the Fun menu and `/fun` folded into the Fun tab.
 - **Wowhead Forever as primary source (v0.9.3-nightly.4):** the skill sends agents to `wowhead.com/forever/<type>=ID` pages before answering game specifics.
 - **Context memory (v0.9.3-nightly.2):** the bridge remembers character, notes, talents and the quest log (diffed by quest ID) plus completed quest history; per-field budgets so chat can't crowd them out.
 - **Keybind and update tracks (v0.9.3-nightly.1):** set the open key in `/settings`; Stable or Nightly updates there or with `wai track`, nightlies published as prereleases.

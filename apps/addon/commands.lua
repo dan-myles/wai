@@ -12,8 +12,7 @@ local HELP = table.concat({
     "/help  " .. MUTED .. "this guide" .. END,
     "/new  " .. MUTED .. "open a new chat tab" .. END .. "   " .. MUTED .. "(double-click a tab to rename, right-click to rename or delete)" .. END,
     "/reload  " .. MUTED .. "refresh the live session" .. END,
-    "/fun  " .. MUTED .. "TikTok mode, killstreaks and test buttons" .. END,
-    "/settings  " .. MUTED .. "typing speed, whispers, window positions" .. END,
+    "/settings  " .. MUTED .. "agent, your wai key, typing speed, TikTok mode, killstreaks, updates" .. END,
     "/update  " .. MUTED .. "update wai to the latest release" .. END,
     "",
     GOLD .. "Just ask" .. END,
@@ -36,7 +35,6 @@ local LIST = {
     { name = "help", hint = "Show what wai can do", run = function() ns.core.note(HELP) end },
     { name = "new", hint = "Open a new chat tab", run = function() ns.core.newTab() end },
     { name = "reload", hint = "Refresh the live session", run = function() ns.core.reload() end },
-    { name = "fun", hint = "Toggles and test buttons", run = function() ns.fun.toggle() end },
     { name = "settings", hint = "Preferences", run = function() ns.settings.toggle() end },
     { name = "update", hint = "Update wai to the latest release", run = function() ns.core.requestUpdate() end },
 }

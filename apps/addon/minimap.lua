@@ -1,5 +1,5 @@
 -- Minimap button: wai's portrait on the minimap ring. Left-click toggles the chat, right-click
--- opens Settings, shift-right-click the Fun menu; drag it around the ring. A small dot shows when
+-- opens Settings, shift-right-click Settings on the Fun tab; drag it around the ring. A small dot shows when
 -- wai is working (pulsing blue) or a reply is waiting (gold). Hidden from Settings.
 
 local _, ns = ...
@@ -56,7 +56,7 @@ local function build()
     badge:Hide()
 
     button:SetScript("OnClick", ns.core.guard(function(_, mouse)
-        if mouse == "RightButton" and IsShiftKeyDown() then return ns.fun.toggle() end
+        if mouse == "RightButton" and IsShiftKeyDown() then return ns.settings.toggle("fun") end
         if mouse == "RightButton" then return ns.settings.toggle() end
         ns.ui.toggle()
     end))
@@ -65,7 +65,7 @@ local function build()
     button:SetScript("OnEnter", function(self)
         halo:SetVertexColor(C.goldSoft[1], C.goldSoft[2], C.goldSoft[3], 0.18)
         portrait.ring:SetVertexColor(C.gold[1], C.gold[2], C.gold[3])
-        T.tooltip(self, "wai", "Click to open the chat.", "Right-click for settings, shift-right-click for fun.", "Drag to move around the minimap.")
+        T.tooltip(self, "wai", "Click to open the chat.", "Right-click for settings, shift-right-click for fun stuff.", "Drag to move around the minimap.")
     end)
     button:SetScript("OnLeave", function()
         halo:SetVertexColor(C.goldSoft[1], C.goldSoft[2], C.goldSoft[3], 0)
@@ -102,7 +102,7 @@ end
 
 -- Settings: a switch in General, on by default.
 ns.settings.DEFAULTS.minimap = true
-table.insert(ns.settings.SECTIONS[1].items, 1, {
+table.insert(ns.settings.TABS[1].sections[1].items, 1, {
     kind = "toggle", key = "minimap", label = "Minimap button", hint = "wai's portrait on the minimap ring",
     set = function(on)
         ns.settings.set("minimap", on)

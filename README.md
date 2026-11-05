@@ -84,7 +84,7 @@
     <td valign="top">
       <h4>📺 Video, TikTok mode, killstreaks</h4>
       Pixel-art guide clips, a vertical TikTok dock with stream chat, and a Chopper Gunner at
-      11 kills and a Nuke at 25. All cosmetic, all in <code>/fun</code>.
+      11 kills and a Nuke at 25. All cosmetic, all in <code>/settings</code> → Fun.
     </td>
     <td valign="top">
       <h4>🔄 Updates itself</h4>
@@ -142,8 +142,7 @@ gh api repos/dan-myles/wai/contents/install.sh -H "Accept: application/vnd.githu
 |---|---|
 | `/help` | what wai can do |
 | `/new` | start a fresh conversation in this tab |
-| `/settings` | agent (Claude or Codex), a key to open wai, typing speed, whisper replies, killstreaks, privacy, window positions, stable or nightly updates (or the ⚙ in the header) |
-| `/fun` | toggles and test buttons for TikTok mode, killstreaks and video |
+| `/settings` | General (agent, your wai key, typing speed, whisper replies, window positions), Fun (TikTok mode, killstreaks, try-it buttons), About (privacy, stable or nightly updates). Also the ⚙ in the header |
 | `/update` | update wai without leaving the game |
 | `/reload` | reload the UI |
 
@@ -154,7 +153,7 @@ Everything else, just ask. Some things to try:
 
 **Copying:** click any message to select its text, then press Ctrl+C. Esc puts it back.
 
-**Minimap button:** left-click for chat, right-click for settings, shift-right-click for fun. Drag it around the ring. Its dot pulses blue while wai works and turns gold when a reply is waiting.
+**Minimap button:** left-click for chat, right-click for settings, shift-right-click for the Fun tab. Drag it around the ring. Its dot pulses blue while wai works and turns gold when a reply is waiting.
 
 ## How it works
 

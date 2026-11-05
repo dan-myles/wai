@@ -381,7 +381,7 @@ ns.video.setTikTok(false)
 assert(not WaiVideo:IsShown(), "tiktok off closes the looping clip")
 print("video ok")
 
--- Fun menu: /fun opens it; toggles and test buttons work.
+-- Fun tab in Settings: toggles and test buttons work; /fun is gone.
 local function click(label)
   for _, f in ipairs(frames) do
     if f.kind == "Button" and f.label and f.label.text == label and f.scripts.OnClick then return f.scripts.OnClick(f, "LeftButton") end
@@ -398,7 +398,9 @@ local function lastPayload()
   return bytes[9], string.char(unpack(bytes, 12, 30))
 end
 ns.commands.run("/fun")
-assert(WaiFunMenu and WaiFunMenu:IsShown(), "fun menu opens")
+assert(#texts("Unknown command /fun") == 1, "/fun is gone")
+ns.settings.toggle("fun")
+assert(WaiSettings:IsShown() and ns.settings.tab() == "fun", "settings open on the Fun tab")
 local toggleRows = {}
 for _, f in ipairs(frames) do if f.kind == "Button" and f.label and (f.label.text == "TikTok mode" or f.label.text == "Killstreaks") then toggleRows[f.label.text] = f end end
 WaiCharDB.tiktok = nil
@@ -421,8 +423,11 @@ click("Stream chat"); tick(1.2, 8); assert(#texts("chat is this real") == 1, "fa
 click("Play a video")
 kind, text = lastPayload()
 assert(kind == 4 and text:find("^video:subway"), "requested a landscape video")
-ns.commands.run("/fun"); assert(not WaiFunMenu:IsShown(), "/fun toggles it closed")
-print("fun menu ok")
+ns.settings.toggle("about"); assert(WaiSettings:IsShown() and ns.settings.tab() == "about", "another tab switches instead of closing")
+ns.settings.toggle("about"); assert(not WaiSettings:IsShown(), "the same tab closes it")
+print("settings height: " .. WaiSettings:GetHeight())
+assert(WaiSettings:GetHeight() < 520, "tabs keep settings well under a 768-unit screen")
+print("fun tab ok")
 
 -- Updates: a slot announces a newer release; the banner offers Update; /update sends kind 5 and
 -- status lines from the bridge show up as note cards.
@@ -492,12 +497,12 @@ print("settings ok")
 -- dot follows busy/unread tabs; Settings can hide it.
 local mm = WaiMinimapButton
 assert(mm and mm:IsShown(), "minimap button shown")
-WaiFrame:Hide(); if WaiSettings then WaiSettings:Hide() end; if WaiFunMenu then WaiFunMenu:Hide() end
+WaiFrame:Hide(); if WaiSettings then WaiSettings:Hide() end; 
 mm.scripts.OnClick(mm, "LeftButton"); assert(WaiFrame:IsShown(), "left-click opens chat")
 mm.scripts.OnClick(mm, "LeftButton"); assert(not WaiFrame:IsShown(), "left-click closes chat")
 mm.scripts.OnClick(mm, "RightButton"); assert(WaiSettings:IsShown(), "right-click opens settings")
 _G.shift = true; mm.scripts.OnClick(mm, "RightButton"); _G.shift = false
-assert(WaiFunMenu:IsShown(), "shift-right-click opens fun")
+assert(WaiSettings:IsShown() and ns.settings.tab() == "fun", "shift-right-click switches settings to Fun")
 -- Drag: cursor straight above the minimap centre (GetCenter is 500,500 in the stub) = 90 degrees.
 _G.cursorX, _G.cursorY = 500, 600
 mm.scripts.OnDragStart(mm); mm.scripts.OnUpdate(mm, 0.01); mm.scripts.OnDragStop(mm)

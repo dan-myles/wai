@@ -1,6 +1,7 @@
--- Settings (/settings, or the gear in the header): a floating panel of grouped preferences.
--- Values live in WaiDB.settings (account-wide) unless an item says otherwise. Add a setting by
--- adding an item to SECTIONS; anything else reads it with ns.settings.get(key).
+-- Settings (/settings, or the gear in the header): a panel docked to the chat window, with tabs
+-- (General, Fun, About) of grouped preferences. Values live in WaiDB.settings (account-wide)
+-- unless an item says otherwise. Add a setting by adding an item to TABS; anything else reads it
+-- with ns.settings.get(key).
 
 local _, ns = ...
 local T = ns.theme
@@ -28,13 +29,12 @@ end
 -- Where each movable wai frame goes after "Reset window positions".
 local HOMES = {
     WaiFrame = { "CENTER", 0, 0 },
-    WaiFunMenu = { "CENTER", -240, 0 },
     WaiVideo = { "CENTER", 0, 120 },
     WaiWaypoint = { "TOP", 0, -140 },
 }
 
 local function resetPositions()
-    WaiDB.ui, WaiDB.funPos, WaiDB.settingsPos, WaiDB.videoPos, WaiDB.wayPos = nil, nil, nil, nil, nil
+    WaiDB.ui, WaiDB.videoPos, WaiDB.wayPos = nil, nil, nil
     for name, home in pairs(HOMES) do
         local f = _G[name]
         if f then
@@ -151,64 +151,127 @@ local function keybindRow(parent, item)
     return row
 end
 
-local SECTIONS = {
+-- The Fun tab: cosmetic extras and buttons to try them on demand.
+local CLIP = "subway surfers gameplay"
+local FAKE_CHAT = {
+    { "xX_GankLord_Xx", "W streamer" }, { "moonglade_mommy", "chat is this real" },
+    { "feral_frank", "LMAO the pet" }, { "auberdine_andy", "first" },
+    { "tauren_tim", "drop the gold route" }, { "gnomer_gwen", "no way he pulled that" },
+}
+
+local TABS = {
     {
-        title = "GENERAL",
-        items = {
+        id = "general", label = "General",
+        sections = {
             {
-                kind = "segmented", label = "Agent", hint = "Who answers; chats carry over",
-                options = { { "claude", "Claude" }, { "codex", "Codex" } },
-                get = function() return ns.core.agent() end,
-                set = function(name) ns.core.setAgent(name) end,
+                title = "GENERAL",
+                items = {
+                    {
+                        kind = "segmented", label = "Agent", hint = "Who answers; chats carry over",
+                        options = { { "claude", "Claude" }, { "codex", "Codex" } },
+                        get = function() return ns.core.agent() end,
+                        set = function(name) ns.core.setAgent(name) end,
+                    },
+                    { kind = "keybind", label = "Toggle wai", hint = "Opens and closes the chat" },
+                    {
+                        kind = "segmented", key = "typing", label = "Typing speed", hint = "How replies appear",
+                        options = { { "instant", "Instant" }, { "fast", "Fast" }, { "normal", "Normal" } },
+                    },
+                    { kind = "toggle", key = "whisper", label = "Whisper replies", hint = "Also post replies in chat while wai is closed" },
+                },
             },
-            { kind = "keybind", label = "Toggle wai", hint = "Opens and closes the chat" },
             {
-                kind = "segmented", key = "typing", label = "Typing speed", hint = "How replies appear",
-                options = { { "instant", "Instant" }, { "fast", "Fast" }, { "normal", "Normal" } },
-            },
-            { kind = "toggle", key = "whisper", label = "Whisper replies", hint = "Also post replies in chat while wai is closed" },
-            {
-                kind = "toggle", label = "Killstreaks", hint = "Chopper Gunner at 11, Nuke at 25 (this character)",
-                get = function() return not WaiCharDB.killstreaksOff end,
-                set = function(on) WaiCharDB.killstreaksOff = (not on) or nil end,
+                title = "WINDOWS",
+                items = {
+                    { kind = "button", label = "Reset window positions", run = resetPositions },
+                },
             },
         },
     },
     {
-        title = "PRIVACY",
-        items = {
+        id = "fun", label = "Fun",
+        sections = {
             {
-                kind = "toggle", key = "telemetry", label = "Error reports", hint = "Anonymous; never your chats or names",
-                get = function() return settings.get("telemetry") == true end,
+                title = "FUN",
+                items = {
+                    {
+                        kind = "toggle", label = "TikTok mode", hint = "Looping clip, captions and stream chat",
+                        get = function() return WaiCharDB.tiktok end,
+                        set = function(on)
+                            ns.video.setTikTok(on)
+                            if on then ns.video.request("clip", CLIP) end
+                        end,
+                    },
+                    {
+                        kind = "toggle", label = "Killstreaks", hint = "Chopper Gunner at 11, Nuke at 25 (this character)",
+                        get = function() return not WaiCharDB.killstreaksOff end,
+                        set = function(on) WaiCharDB.killstreaksOff = (not on) or nil end,
+                    },
+                    { kind = "grid", label = "Try it", buttons = {
+                        { "Chopper Gunner", function() ns.streak.test("chopper") end },
+                        { "Nuke", function() ns.streak.test("nuke") end },
+                        { "+1 kill", function() ns.streak.addKill() end },
+                        { "Reset streak", function() ns.streak.reset() end },
+                        { "Play a video", function() ns.video.request("video", CLIP) end },
+                        { "Stream chat", function()
+                            for _, line in ipairs(FAKE_CHAT) do ns.video.stream(line[1], line[2]) end
+                        end },
+                    } },
+                },
             },
-            { kind = "button", label = "See what's sent", run = function() settings.showTelemetry() end },
         },
     },
     {
-        title = "WINDOWS",
-        items = {
-            { kind = "button", label = "Reset window positions", run = resetPositions },
-        },
-    },
-    {
-        title = "ABOUT",
-        items = {
+        id = "about", label = "About",
+        sections = {
             {
-                kind = "segmented", label = "Updates", hint = "Nightly gets new features first",
-                options = { { "stable", "Stable" }, { "nightly", "Nightly" } },
-                get = function() return ns.core.track() end,
-                set = function(name) ns.core.setTrack(name) end,
+                title = "PRIVACY",
+                items = {
+                    {
+                        kind = "toggle", key = "telemetry", label = "Error reports", hint = "Anonymous; never your chats or names",
+                        get = function() return settings.get("telemetry") == true end,
+                    },
+                    { kind = "button", label = "See what's sent", run = function() settings.showTelemetry() end },
+                },
             },
-            { kind = "about" },
-            { kind = "buttons", buttons = {
-                { "Check for updates", function() ns.core.requestUpdate() end },
-                { "Help", function() ns.commands.run("/help") end },
-            } },
+            {
+                title = "ABOUT",
+                items = {
+                    {
+                        kind = "segmented", label = "Updates", hint = "Nightly gets new features first",
+                        options = { { "stable", "Stable" }, { "nightly", "Nightly" } },
+                        get = function() return ns.core.track() end,
+                        set = function(name) ns.core.setTrack(name) end,
+                    },
+                    { kind = "about" },
+                    { kind = "buttons", buttons = {
+                        { "Check for updates", function() ns.core.requestUpdate() end },
+                        { "Help", function() ns.commands.run("/help") end },
+                    } },
+                },
+            },
         },
     },
 }
 
 local panel, rows, about = nil, {}, nil
+local current = "general" -- the open tab, kept for the session
+
+local function paintTab(tab, hovered)
+    local b, active = tab.button, tab.id == current
+    local color = active and C.gold or (hovered and C.text or C.muted)
+    b.label:SetTextColor(color[1], color[2], color[3])
+    b.bg:SetFill(active and T.alpha(C.gold, 0.07) or (hovered and T.alpha(C.gold, 0.04) or C.clear))
+    b.underline:SetShown(active)
+end
+
+local function choose(id)
+    current = id
+    for _, tab in ipairs(TABS) do
+        tab.page:SetShown(tab.id == id)
+        paintTab(tab, false)
+    end
+end
 
 -- The panel sits beside the chat window, on the right if the screen has room, otherwise the left.
 -- Anchored, not positioned, so dragging the chat window carries it along.
@@ -270,52 +333,106 @@ local function build()
     close.label:SetText("×")
     close.Paint(false)
 
-    local y = -62
-    for _, sec in ipairs(SECTIONS) do
-        y = section(panel, sec.title, y)
-        for _, item in ipairs(sec.items) do
-            local row
-            if item.kind == "toggle" or item.kind == "segmented" then
-                local get, set = accessors(item)
-                local make = item.kind == "toggle" and T.toggle or T.segmented
-                row = make(panel, { label = item.label, hint = item.hint, options = item.options, get = get, set = set })
-                rows[#rows + 1] = row
-            elseif item.kind == "keybind" then
-                row = keybindRow(panel, item)
-                rows[#rows + 1] = row
-            elseif item.kind == "button" then
-                row = T.button(panel, "outline", item.label, { height = 30, radius = 8, size = 12, onClick = item.run })
+    -- Tabs under the header, in the chat window's style: gold text, a soft wash and an underline
+    -- on the active one.
+    local strip = CreateFrame("Frame", nil, panel)
+    strip:SetPoint("TOPLEFT", 12, -56)
+    strip:SetPoint("TOPRIGHT", -12, -56)
+    strip:SetHeight(28)
+    local rule = T.solid(strip, "BORDER", T.alpha(C.goldSoft, 0.35))
+    rule:SetHeight(1)
+    rule:SetPoint("BOTTOMLEFT")
+    rule:SetPoint("BOTTOMRIGHT")
+    local x = 0
+    for _, tab in ipairs(TABS) do
+        local b = CreateFrame("Button", nil, strip)
+        b:SetHeight(26)
+        b:SetPoint("BOTTOMLEFT", x, 1)
+        b.bg = T.box(b, 6, C.clear)
+        b.label = T.label(b, "display", 12, C.muted)
+        b.label:SetPoint("CENTER", 0, 1)
+        b.label:SetText(tab.label)
+        b:SetWidth(math.ceil(b.label:GetStringWidth()) + 24)
+        b.underline = T.solid(b, "OVERLAY", C.goldSoft)
+        b.underline:SetHeight(2)
+        b.underline:SetPoint("BOTTOMLEFT", 8, 0)
+        b.underline:SetPoint("BOTTOMRIGHT", -8, 0)
+        b:SetScript("OnClick", ns.core.guard(function() choose(tab.id) end))
+        b:SetScript("OnEnter", function() paintTab(tab, true) end)
+        b:SetScript("OnLeave", function() paintTab(tab, false) end)
+        tab.button = b
+        x = x + b:GetWidth() + 4
+    end
+
+    -- One page per tab. The panel keeps the tallest page's height so switching never jumps.
+    local tallest = 0
+    for _, tab in ipairs(TABS) do
+        local page = CreateFrame("Frame", nil, panel)
+        page:SetPoint("TOPLEFT", 0, -96)
+        page:SetPoint("TOPRIGHT", 0, -96)
+        local y = 0
+        for _, sec in ipairs(tab.sections) do
+            y = section(page, sec.title, y)
+            for _, item in ipairs(sec.items) do
+                local row
+                if item.kind == "toggle" or item.kind == "segmented" then
+                    local get, set = accessors(item)
+                    local make = item.kind == "toggle" and T.toggle or T.segmented
+                    row = make(page, { label = item.label, hint = item.hint, options = item.options, get = get, set = set })
+                    rows[#rows + 1] = row
+                elseif item.kind == "keybind" then
+                    row = keybindRow(page, item)
+                    rows[#rows + 1] = row
+                elseif item.kind == "button" then
+                    row = T.button(page, "outline", item.label, { height = 30, radius = 8, size = 12, onClick = item.run })
+                    row:SetPoint("TOPLEFT", 16, y)
+                    row:SetPoint("TOPRIGHT", -16, y)
+                elseif item.kind == "buttons" then
+                    row = CreateFrame("Frame", nil, page)
+                    row:SetHeight(30)
+                    local w = (WIDTH - 32 - 8) / #item.buttons
+                    for i, b in ipairs(item.buttons) do
+                        local btn = T.button(row, "outline", b[1], { width = w, height = 30, radius = 8, size = 12, onClick = b[2] })
+                        btn:SetPoint("LEFT", (i - 1) * (w + 8), 0)
+                    end
+                elseif item.kind == "grid" then
+                    -- A small label over three columns of compact buttons.
+                    row = CreateFrame("Frame", nil, page)
+                    local label = T.label(row, "regular", 11, C.muted)
+                    label:SetPoint("TOPLEFT")
+                    label:SetText(item.label)
+                    local w = (WIDTH - 32 - 12) / 3
+                    for i, b in ipairs(item.buttons) do
+                        local btn = T.button(row, "outline", b[1], { width = w, height = 26, radius = 6, size = 11, onClick = b[2] })
+                        btn:SetPoint("TOPLEFT", ((i - 1) % 3) * (w + 6), -20 - math.floor((i - 1) / 3) * 32)
+                    end
+                    row:SetHeight(20 + math.ceil(#item.buttons / 3) * 32 - 6)
+                elseif item.kind == "about" then
+                    -- Version and bridge status on lines of their own: a nightly version is long.
+                    row = CreateFrame("Frame", nil, page)
+                    row:SetHeight(34)
+                    about = T.label(row, "regular", 12, C.gold)
+                    about:SetPoint("TOPLEFT")
+                    about:SetPoint("TOPRIGHT")
+                    about:SetWordWrap(false)
+                    row.status = T.label(row, "regular", 11, C.muted)
+                    row.status:SetPoint("TOPLEFT", about, "BOTTOMLEFT", 0, -4)
+                    row.status:SetPoint("RIGHT")
+                    row.status:SetWordWrap(false)
+                    about.status = row.status
+                end
                 row:SetPoint("TOPLEFT", 16, y)
                 row:SetPoint("TOPRIGHT", -16, y)
-            elseif item.kind == "buttons" then
-                row = CreateFrame("Frame", nil, panel)
-                row:SetHeight(30)
-                local w = (WIDTH - 32 - 8) / #item.buttons
-                for i, b in ipairs(item.buttons) do
-                    local btn = T.button(row, "outline", b[1], { width = w, height = 30, radius = 8, size = 12, onClick = b[2] })
-                    btn:SetPoint("LEFT", (i - 1) * (w + 8), 0)
-                end
-            elseif item.kind == "about" then
-                -- Version and bridge status on lines of their own: a nightly version is long.
-                row = CreateFrame("Frame", nil, panel)
-                row:SetHeight(34)
-                about = T.label(row, "regular", 12, C.gold)
-                about:SetPoint("TOPLEFT")
-                about:SetPoint("TOPRIGHT")
-                about:SetWordWrap(false)
-                row.status = T.label(row, "regular", 11, C.muted)
-                row.status:SetPoint("TOPLEFT", about, "BOTTOMLEFT", 0, -4)
-                row.status:SetPoint("RIGHT")
-                row.status:SetWordWrap(false)
-                about.status = row.status
+                y = y - row:GetHeight() - 10
             end
-            row:SetPoint("TOPLEFT", 16, y)
-            row:SetPoint("TOPRIGHT", -16, y)
-            y = y - row:GetHeight() - 10
+            y = y - 6
         end
-        y = y - 6
+        page:SetHeight(-y)
+        tallest = math.max(tallest, -y)
+        tab.page = page
     end
-    panel:SetHeight(-y + 6)
+    panel:SetHeight(96 + tallest + 4)
+    choose(current)
 
     -- Docked to the chat window: it moves with it, closes with it, and comes back with it if it was
     -- open (for this session).
@@ -348,9 +465,17 @@ local function build()
     panel:Hide()
 end
 
-function settings.toggle()
+function settings.tab()
+    return current
+end
+
+-- tab: open on that tab ("general", "fun", "about"). Asking for another tab while open switches
+-- to it instead of closing.
+function settings.toggle(tab)
     if not panel then build() end
-    if panel:IsShown() then return panel:Hide() end
+    if panel:IsShown() and (not tab or tab == current) then return panel:Hide() end
+    if tab then choose(tab) end
+    if panel:IsShown() then return end
     if not WaiFrame:IsShown() then ns.ui.show() end -- it belongs to the chat window
     dock()
     for _, row in ipairs(rows) do row:Refresh() end
@@ -373,5 +498,5 @@ function settings.showTelemetry()
 end
 
 -- For later releases: add a section or an item (and its default) without touching the panel code.
-settings.SECTIONS = SECTIONS
+settings.TABS = TABS
 settings.DEFAULTS = DEFAULTS

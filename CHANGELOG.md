@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.3-nightly.9 (2026-11-05)
+
+- **Settings has tabs: General, Fun and About.** The panel is about half as tall as a single
+  page would be, so it fits any screen.
+- **The Fun menu moved into Settings → Fun:** TikTok mode, Killstreaks (moved out of General) and
+  the try-it buttons (Chopper Gunner, Nuke, +1 kill, Reset streak, Play a video, Stream chat).
+- `/fun` and the separate Fun window are gone. Shift-right-click on the minimap button opens
+  Settings on the Fun tab.
+
 ## 0.9.3-nightly.8 (2026-11-05)
 
 - Fix: with settings open, your wai key (and every other key, movement included) was swallowed by

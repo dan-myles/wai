@@ -411,6 +411,80 @@ local function startRename(b)
     renamer:HighlightText()
 end
 
+-- Right-click menu for a tab: Rename, and Delete, which asks for a second click since a deleted
+-- chat is gone. A full-screen catcher behind it closes it on any click elsewhere.
+local tabMenu, catcher
+
+local function hideTabMenu()
+    if tabMenu then
+        tabMenu:Hide()
+        catcher:Hide()
+    end
+end
+
+local function menuRow(text, color, hover, onClick)
+    local row = CreateFrame("Button", nil, tabMenu)
+    row:SetHeight(26)
+    row:SetPoint("LEFT", 6, 0)
+    row:SetPoint("RIGHT", -6, 0)
+    row.bg = T.box(row, 5, C.clear)
+    row.label = T.label(row, "regular", 12, color)
+    row.label:SetPoint("LEFT", 10, 0)
+    row.label:SetText(text)
+    row:SetScript("OnEnter", function() row.bg:SetFill(hover) end)
+    row:SetScript("OnLeave", function() row.bg:SetFill(C.clear) end)
+    row:SetScript("OnClick", guard(onClick))
+    return row
+end
+
+local function buildTabMenu()
+    catcher = CreateFrame("Button", nil, UIParent)
+    catcher:SetAllPoints(UIParent)
+    catcher:SetFrameStrata("FULLSCREEN_DIALOG")
+    catcher:RegisterForClicks("AnyUp")
+    catcher:SetScript("OnClick", hideTabMenu)
+    catcher:Hide()
+    tabMenu = CreateFrame("Frame", "WaiTabMenu", UIParent)
+    tabMenu:SetFrameStrata("FULLSCREEN_DIALOG")
+    tabMenu:SetFrameLevel(catcher:GetFrameLevel() + 10)
+    tabMenu:SetSize(170, 66)
+    tabMenu:EnableMouse(true)
+    tabMenu:SetClampedToScreen(true)
+    T.panel(tabMenu, 8)
+    tinsert(UISpecialFrames, "WaiTabMenu") -- Esc closes it
+    tabMenu:SetScript("OnHide", function() catcher:Hide() end) -- Esc hides only the menu
+    tabMenu.rename = menuRow("Rename", C.text, alpha(C.gold, 0.08), function()
+        local b = tabMenu.tab
+        hideTabMenu()
+        startRename(b)
+    end)
+    tabMenu.rename:SetPoint("TOP", 0, -6)
+    tabMenu.delete = menuRow("Delete", C.red, alpha(C.red, 0.1), function(row)
+        if not tabMenu.confirming then
+            tabMenu.confirming = true
+            row.label:SetText(tabMenu.last and "Click again to clear" or "Click again to delete")
+            return
+        end
+        local id = tabMenu.tab.state.id
+        hideTabMenu()
+        ns.core.closeTab(id)
+    end)
+    tabMenu.delete:SetPoint("TOP", tabMenu.rename, "BOTTOM", 0, -2)
+    tabMenu:Hide()
+end
+
+local function showTabMenu(b)
+    if not tabMenu then buildTabMenu() end
+    tabMenu.tab, tabMenu.confirming = b, nil
+    -- Deleting the only chat starts it over instead (core.closeTab), so say that.
+    tabMenu.last = #ns.core.tabs() == 1
+    tabMenu.delete.label:SetText(tabMenu.last and "Clear chat" or "Delete")
+    tabMenu:ClearAllPoints()
+    tabMenu:SetPoint("TOPLEFT", b, "BOTTOMLEFT", 0, -4)
+    catcher:Show()
+    tabMenu:Show()
+end
+
 local function tabButton()
     local b = CreateFrame("Button", nil, strip)
     b:SetHeight(26)
@@ -428,12 +502,19 @@ local function tabButton()
     b.underline:SetPoint("BOTTOMRIGHT", -8, 0)
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp", "MiddleButtonUp")
     b:SetScript("OnClick", guard(function(self, button)
-        if button == "LeftButton" then ns.core.switchTab(self.state.id) else ns.core.closeTab(self.state.id) end
+        if button == "LeftButton" then
+            ns.core.switchTab(self.state.id)
+        elseif button == "RightButton" then
+            GameTooltip:Hide()
+            showTabMenu(self)
+        else
+            ns.core.closeTab(self.state.id) -- middle-click, like a browser tab
+        end
     end))
     b:SetScript("OnDoubleClick", guard(function(self) startRename(self) end))
     b:SetScript("OnEnter", function(self)
         paintTab(self, true)
-        T.tooltip(self, self.state.name, "Double-click to rename. Right-click to close.")
+        T.tooltip(self, self.state.name, "Double-click to rename. Right-click for options.")
     end)
     b:SetScript("OnLeave", function(self)
         paintTab(self, false)
@@ -963,7 +1044,10 @@ function ui.build()
         ui.update()
         scrollTo(scrollRange())
     end))
-    frame:SetScript("OnHide", guard(endSelect))
+    frame:SetScript("OnHide", guard(function()
+        endSelect()
+        hideTabMenu()
+    end))
 end
 
 -- Sets what the next message is about and puts the cursor in the input.

@@ -554,7 +554,7 @@ end
 
 function core.newTab()
     local t = tabs()
-    if #t.list >= MAX_TABS then return core.note(("You can have up to %d chats. Close one first (right-click its tab)."):format(MAX_TABS)) end
+    if #t.list >= MAX_TABS then return core.note(("You can have up to %d chats. Delete one first (right-click its tab)."):format(MAX_TABS)) end
     local id = "t" .. t.next
     t.next = t.next + 1
     table.insert(t.list, { id = id, name = "New chat", auto = true })

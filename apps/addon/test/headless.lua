@@ -669,6 +669,34 @@ ns.macros.save("Long", ("x"):rep(256))
 assert(#texts("at most 16 characters") == 1 and #texts("WoW allows 255") == 1 and #macroBook.char == 2, "limits")
 print("macros ok")
 
+-- Tab menu: right-click opens Rename / Delete instead of closing; Delete needs a second click.
+ns.core.newTab()
+local before = #ns.core.tabs()
+local victim = ns.core.tabs()[before]
+local function tabFor(id) for _, f in ipairs(frames) do if f.kind == "Button" and f.state and f.state.id == id and f.shown then return f end end end
+local tb = tabFor(victim.id)
+tb.scripts.OnClick(tb, "RightButton")
+assert(#ns.core.tabs() == before and WaiTabMenu:IsShown(), "right-click opens the menu, keeps the tab")
+clickText("Rename")
+assert(not WaiTabMenu:IsShown(), "picking an item closes the menu")
+local renamerBox; for _, f in ipairs(frames) do if f.kind == "EditBox" and f.id == victim.id then renamerBox = f end end
+assert(renamerBox and renamerBox.shown and renamerBox.text == victim.name, "Rename edits the name inline")
+renamerBox:Hide()
+tb.scripts.OnClick(tb, "RightButton")
+clickText("Delete")
+assert(#ns.core.tabs() == before and #texts("Click again to delete") == 1, "first click asks")
+clickText("Click again to delete")
+assert(#ns.core.tabs() == before - 1 and not WaiTabMenu:IsShown(), "second click deletes")
+-- A click anywhere else just closes it.
+tb = tabFor(ns.core.tabs()[1].id)
+tb.scripts.OnClick(tb, "RightButton")
+local outside
+for _, f in ipairs(frames) do if f.kind == "Button" and f.parent == UIParent and f.shown and not f.label and f.scripts.OnClick and not f.name then outside = f end end
+outside.scripts.OnClick(outside, "LeftButton")
+assert(not WaiTabMenu:IsShown() and not outside.shown, "a click outside closes the menu")
+assert(#ns.core.tabs() == before - 1, "closing the menu changes nothing")
+print("tab menu ok")
+
 -- Suggestions while typing.
 subjectInput:SetText("/re")
 assert(#texts("^/reload") >= 1 and #texts("^/remember") == 0, "suggestions")

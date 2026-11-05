@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.2 (2026-11-05)
+
+- Right-clicking a chat tab no longer closes it. It opens a small menu with Rename and Delete.
+  Delete asks for a second click; on your only tab it reads "Clear chat".
+- Middle-click still closes a tab, like in a browser.
+
 ## 0.9.1 (2026-11-05)
 
 wai writes your macros.

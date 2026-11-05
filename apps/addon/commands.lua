@@ -10,7 +10,7 @@ local GOLD, MUTED, END = "|cffffd100", "|cff9298a3", "|r"
 local HELP = table.concat({
     GOLD .. "Commands" .. END,
     "/help  " .. MUTED .. "this guide" .. END,
-    "/new  " .. MUTED .. "open a new chat tab" .. END .. "   " .. MUTED .. "(double-click a tab to rename, right-click to close)" .. END,
+    "/new  " .. MUTED .. "open a new chat tab" .. END .. "   " .. MUTED .. "(double-click a tab to rename, right-click to rename or delete)" .. END,
     "/reload  " .. MUTED .. "refresh the live session" .. END,
     "/fun  " .. MUTED .. "TikTok mode, killstreaks and test buttons" .. END,
     "/settings  " .. MUTED .. "typing speed, whispers, window positions" .. END,

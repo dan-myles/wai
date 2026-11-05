@@ -310,8 +310,9 @@ local function entries(view)
     return list
 end
 
+-- Only shown while something is happening; an idle window has no status.
 local function setStatus(view)
-    local color, text = C.uncommon, "Ready"
+    local color, text
     if view.notice and view.notice.tone == "error" then
         color, text = C.red, "Offline"
     elseif view.streaming then
@@ -319,6 +320,9 @@ local function setStatus(view)
     elseif view.thinking then
         color, text = C.rare, "Thinking"
     end
+    statusText:SetShown(text ~= nil)
+    statusDot:SetShown(text ~= nil)
+    if not text then return end
     statusDot:SetVertexColor(color[1], color[2], color[3])
     statusDot.pulse = color == C.rare
     statusText:SetText(text)

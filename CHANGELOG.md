@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.3-nightly.10 (2026-11-05)
+
+- Fix: replies ending in hidden markup (TikTok mode's stream reactions) left a block of blank space
+  at the bottom of the card.
+- The footer no longer says "Ready" when wai is idle. It only shows a status while wai is thinking,
+  writing or offline.
+
 ## 0.9.3-nightly.9 (2026-11-05)
 
 - **Settings has tabs: General, Fun and About.** The panel is about half as tall as a single

@@ -259,6 +259,14 @@ assert(rendered[#rendered]:find("Noted: wants to level First Aid"), "remember sh
 assert(WaiCharDB.notes[1] == "wants to level First Aid", "remember stored")
 print("stream + markup ok")
 
+-- Hidden tokens on their own lines (TikTok mode's stream reactions) leave no blank space behind.
+local tail = ns.links.render("Use it for travel.\n\nSources: none\n\n[[stream:a:b]]\n[[stream:c:d]]\n")
+assert(tail == "Use it for travel.\n\nSources: none", "trailing hidden tokens trimmed: " .. tail)
+assert(ns.links.render("[[title:Hi]]\nOne\n\n[[stream:a:b]]\n\nTwo") == "One\n\nTwo", "hidden lines collapse")
+local function shownText(s) for _, f in ipairs(frames) do if f.kind == "FontString" and f.text == s and f.shown then return f end end end
+assert(not shownText("Ready"), "an idle window shows no status")
+print("blank lines + idle status ok")
+
 -- The agent's setway placed the arrow on its own.
 assert(WaiWaypoint and WaiWaypoint:IsShown(), "arrow set automatically")
 assert(WaiCharDB.way.title == "Dolanaar Inn")

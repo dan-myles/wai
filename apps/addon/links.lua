@@ -160,8 +160,10 @@ function links.render(text)
         local ok, out = pcall(fn, body)
         return ok and out or body
     end)
-    -- A hidden token on its own first line ([[title:..]]) would leave a blank line.
-    return (text:gsub("^%s+", ""))
+    -- Hidden tokens on lines of their own ([[title:..]] first, [[stream:..]] last) leave empty
+    -- lines behind, which would show as blank space in the card.
+    text = text:gsub("\n[ \t]*\n%s*\n", "\n\n")
+    return (text:gsub("^%s+", ""):gsub("%s+$", ""))
 end
 
 -- Actions the agent asked for in a finished reply, in order: { kind, body }.

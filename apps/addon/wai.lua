@@ -31,6 +31,7 @@ local lastBeat, lastBeatAt = nil, 0
 local updateAvailable -- a newer wai release the bridge found
 local agent -- which agent the bridge answers with ("claude" | "codex")
 local track -- the bridge's update track ("stable" | "nightly")
+local ctxEpoch -- the bridge's context memory; context.lua resends everything when it changes
 local contactAt -- when a live snapshot from the bridge last arrived
 local grid, gridBlocks, shots, shooting, savedFormat = nil, nil, {}, nil, nil
 local localId = 0
@@ -270,6 +271,7 @@ local function mergeSlot(slot)
     updateAvailable = slot.update and slot.update.version
     agent = slot.agent or agent
     track = slot.track or track
+    ctxEpoch = slot.ctxEpoch or ctxEpoch
     for tab, snap in pairs(slot.chats or {}) do merge(tab, snap, true) end
     ns.modules.sync(slot.modules)
     ns.video.sync(slot.video)
@@ -353,26 +355,44 @@ end
 
 -- The player's telemetry choice and the client build (and an agent or update-track switch, on the
 -- ping that asks for it), plus queued reports if they opted in.
-local function flagsTail(item)
+local function flags(item)
     local choice = ns.settings.get("telemetry")
-    local flags = choice == true and "t=1" or choice == false and "t=0" or ""
+    local out = choice == true and "t=1" or choice == false and "t=0" or ""
     local version, build
     if GetBuildInfo then version, build = GetBuildInfo() end
-    if version then flags = flags .. ";c=" .. version .. "." .. tostring(build) end
-    if item.agent then flags = flags .. ";a=" .. item.agent end
-    if item.track then flags = flags .. ";u=" .. item.track end
-    if choice ~= true then return "\0" .. flags .. "\0" end
-    local lines = table.concat(reports, "\n")
-    reports = {}
-    return "\0" .. flags .. "\0" .. lines:sub(1, 900)
+    if version then out = out .. ";c=" .. version .. "." .. tostring(build) end
+    if item.agent then out = out .. ";a=" .. item.agent end
+    if item.track then out = out .. ";u=" .. item.track end
+    return out
+end
+
+-- Everything after the context: who, tab and flags. Reports are added in whatever room is left.
+local function fixedTail(item)
+    return "\0" .. who .. "\0" .. (item.tab or activeTab()) .. "\0" .. flags(item) .. "\0"
+end
+
+-- Bytes the context may use for a message with this text (context.lua budgets within it).
+function core.room(text)
+    return CAPACITY - HEADER_BYTES - #(text or "") - 1 - #fixedTail({})
+end
+
+function core.ctxEpoch()
+    return ctxEpoch
 end
 
 -- Header: "WAI", version, seq(2), slot(2), kind, length(2); then
 -- text \0 context \0 who \0 tab \0 flags \0 telemetry reports.
 local function encode(item)
-    local tail = "\0" .. who .. "\0" .. (item.tab or activeTab()) .. flagsTail(item)
+    local tail = fixedTail(item)
     local payload = (item.text or "") .. "\0" .. (item.ctx or "")
-    payload = payload:sub(1, CAPACITY - HEADER_BYTES - #tail) .. tail
+    payload = payload:sub(1, CAPACITY - HEADER_BYTES - #tail)
+    -- Error reports (opted in) only take room the message doesn't need; the rest wait.
+    if ns.settings.get("telemetry") == true and #reports > 0 then
+        local lines = table.concat(reports, "\n"):sub(1, math.min(900, CAPACITY - HEADER_BYTES - #tail - #payload))
+        if #lines > 0 then reports = {} end
+        tail = tail .. lines
+    end
+    payload = payload .. tail
     local seq, slot = item.seq or 0, nextSlot
     local bytes = {
         87, 65, 73, VERSION,
@@ -643,6 +663,7 @@ events:SetScript("OnEvent", guard(function()
     updateAvailable = data.update and data.update.version
     agent = data.agent
     track = data.track
+    ctxEpoch = data.ctxEpoch
     local prefix = who .. "#"
     for key, snap in pairs(data.chats or {}) do
         if key:sub(1, #prefix) == prefix then merge(key:sub(#prefix + 1), snap, false) end

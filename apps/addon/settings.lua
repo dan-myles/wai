@@ -203,8 +203,10 @@ end
 
 local function refreshAbout()
     local seen = ns.core.lastContact()
-    local bridge = seen and (seen < 90 and "in touch" or ("last heard %dm ago"):format(seen / 60)) or "not heard from this session"
-    about:SetText(("|cffffd100wai %s|r  ·  bridge %s"):format(version(), bridge))
+    -- The addon only polls while it waits for a reply, so no contact yet just means no messages yet.
+    local bridge = seen and (seen < 90 and "in touch" or ("last heard %dm ago"):format(seen / 60)) or "no messages yet this session"
+    about:SetText("wai " .. version())
+    about.status:SetText("Bridge: " .. bridge)
 end
 
 local function build()
@@ -265,10 +267,18 @@ local function build()
                     btn:SetPoint("LEFT", (i - 1) * (w + 8), 0)
                 end
             elseif item.kind == "about" then
+                -- Version and bridge status on lines of their own: a nightly version is long.
                 row = CreateFrame("Frame", nil, panel)
-                row:SetHeight(18)
-                about = T.label(row, "regular", 12, C.muted)
-                about:SetPoint("LEFT")
+                row:SetHeight(34)
+                about = T.label(row, "regular", 12, C.gold)
+                about:SetPoint("TOPLEFT")
+                about:SetPoint("TOPRIGHT")
+                about:SetWordWrap(false)
+                row.status = T.label(row, "regular", 11, C.muted)
+                row.status:SetPoint("TOPLEFT", about, "BOTTOMLEFT", 0, -4)
+                row.status:SetPoint("RIGHT")
+                row.status:SetWordWrap(false)
+                about.status = row.status
             end
             row:SetPoint("TOPLEFT", 16, y)
             row:SetPoint("TOPRIGHT", -16, y)

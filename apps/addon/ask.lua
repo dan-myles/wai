@@ -156,11 +156,18 @@ function ask.player(name)
 end
 
 -- The last n chat lines, for context.
-function ask.chatLines(n)
-    local lines = {}
-    for i = math.max(1, #chat - n + 1), #chat do
+-- Up to n of the latest lines within `budget` bytes, newest kept first. Channels drop their number
+-- and zone ("1. General - Teldrassil" -> "General") and long lines are shortened.
+function ask.chatLines(n, budget)
+    local lines, size = {}, 0
+    for i = #chat, math.max(1, #chat - n + 1), -1 do
         local m = chat[i]
-        lines[#lines + 1] = ("[%s] %s: %s"):format(m.where, m.sender, m.text)
+        local where = m.where:gsub("^%d+%.%s*", ""):gsub("%s+%-%s+.*$", "")
+        local text = #m.text > 120 and (m.text:sub(1, 117) .. "...") or m.text
+        local line = ("[%s] %s: %s"):format(where, m.sender, text)
+        if budget and size + #line + 1 > budget then break end
+        table.insert(lines, 1, line)
+        size = size + #line + 1
     end
     return #lines > 0 and ("\n" .. table.concat(lines, "\n")) or nil
 end

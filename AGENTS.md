@@ -34,6 +34,9 @@ it works and docs/DESIGN.md for the visual language.
   run through flags and env, never by editing the player's own CLI configs. The agent's capabilities live in
   `apps/cli/SKILL.md`, injected into every prompt. Reply markup
   (`[[item:..]]`, `[[setway:..]]`, `[[remember:..]]`...) is rendered and acted on by `links.lua` and `wai.lua`.
+- Game context (`context.lua` -> `apps/cli/src/context.ts`) must fit one screenshot: slow fields are
+  remembered by the bridge and sent only on change, keyed to the bridge's `ctxEpoch`; the rest are
+  budgeted per field.
 - Telemetry is opt-in and anonymous. Never add a field to reports without updating
   docs/TELEMETRY.md and the collector's schema, and never send chat text or names.
 - Never write anything that automates gameplay. wai reads state, shows information and builds UI.

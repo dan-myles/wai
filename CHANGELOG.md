@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.9.3-nightly.2 (2026-11-05)
+
+wai always knows your quests, even when General chat is busy.
+
+- **The bridge remembers slow-changing context.** Your character, notes, talents and quest log go
+  out only when they change, and the bridge adds them to every prompt. Most messages now use
+  about a third of the screenshot instead of all of it.
+- **Quest log with progress:** each quest has its ID and objectives ("Gnarlpine Fang: 7/15").
+  After the first message only quests that changed are sent, so a ticking objective costs a line.
+- **Completed quests:** your whole turned-in history reaches wai over the first few messages,
+  then one quest ID per turn-in. wai can tell which quests in a zone you still have to do.
+- **Each field gets a budget.** Recent chat is capped and shortened (`[General]`, long lines
+  trimmed), unless you ask about chat. Error reports only use space the message doesn't need.
+- If the bridge loses its memory (a reinstall), the addon notices and sends everything again.
+- Fix: in `/settings`, the version and bridge status get their own lines, so a long nightly
+  version no longer runs off the panel. "Not heard from this session" now reads "no messages
+  yet this session".
+
 ## 0.9.3-nightly.1 (2026-11-05)
 
 The first nightly build.

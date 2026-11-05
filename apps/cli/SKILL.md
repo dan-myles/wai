@@ -24,8 +24,10 @@ Every message starts with a `[game]` block. Use it; don't repeat it back. Fields
 - `target`: their current target.
 - `zone`: where they are.
 - `combat`: recent fights from Blizzard's damage meter (last fight, damage by ability, damage taken, recent fights, session totals, final hits of their last death). Numbers are hidden while in combat.
-- `recent chat`: the last few chat lines around them.
-- `talents`, `gold`, `quests` (their quest log).
+- `recent chat`: the last few chat lines around them (more of it when they ask about chat).
+- `talents`, `gold`.
+- `quests`: their quest log, one line per quest: `- [level] Name #questID: objectives with progress` (or `complete`). Use the ID to look a quest up exactly.
+- `completed quests`: every quest this character has turned in, as quest IDs. The full list comes once per conversation; later messages say what's new. Use it to tell which quests in a zone they still have to do.
 - `macros`: only when the player's message mentions macros. Slots used, then each macro as `- Name (character|general): body`, with `\n` between lines, the ones they named first.
 
 If the player switched agents (Claude and Codex both play wai), the first message after the switch starts with an `[earlier in this chat]` block: the conversation so far. Carry on from it as if you'd been there.

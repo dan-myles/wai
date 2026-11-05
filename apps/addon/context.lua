@@ -51,15 +51,55 @@ local function talents()
     return table.concat(parts, " / ")
 end
 
-local function quests()
-    local list = {}
+-- One line per quest: "- [7] The Fargodeep Mine #62: Gnarlpine Fang slain: 7/15, ...". The ID lets
+-- the agent look the quest up exactly; objectives say how far along it is. Returns the lines and
+-- each one's quest ID (nil when the client doesn't give one).
+local function questLog()
+    local list, ids = {}, {}
     for i = 1, GetNumQuestLogEntries() do
-        local title, level, _, isHeader, _, isComplete = GetQuestLogTitle(i)
+        local title, level, _, isHeader, _, isComplete, _, id = GetQuestLogTitle(i)
         if usable(title) and not isHeader then
-            list[#list + 1] = ("%s (%d%s)"):format(title, level or 0, isComplete == 1 and ", complete" or "")
+            local objectives = {}
+            for j = 1, (GetNumQuestLeaderBoards and GetNumQuestLeaderBoards(i)) or 0 do
+                local text = GetQuestLogLeaderBoard(j, i)
+                if usable(text) then objectives[#objectives + 1] = text end
+            end
+            local state = isComplete == 1 and "complete" or isComplete == -1 and "failed" or table.concat(objectives, ", ")
+            list[#list + 1] = ("- [%d] %s%s%s"):format(level or 0, title, num(id) and (" #" .. id) or "", state ~= "" and (": " .. state) or "")
+            ids[#list] = num(id)
         end
     end
-    return #list > 0 and table.concat(list, "; ") or nil
+    return list, ids
+end
+
+-- Every quest this character has turned in, whichever API this client has.
+local function completedIDs()
+    local QL = C_QuestLog
+    if QL and QL.GetAllCompletedQuestIDs then
+        local ok, ids = pcall(QL.GetAllCompletedQuestIDs)
+        if ok and type(ids) == "table" then return ids end
+    end
+    if GetQuestsCompleted then
+        local ok, set = pcall(GetQuestsCompleted, {})
+        if ok and type(set) == "table" then
+            local ids = {}
+            for id, done in pairs(set) do
+                if done then ids[#ids + 1] = id end
+            end
+            return ids
+        end
+    end
+    return {}
+end
+
+local function base36(n)
+    local digits, out = "0123456789abcdefghijklmnopqrstuvwxyz", ""
+    repeat
+        local d = n % 36
+        out = digits:sub(d + 1, d + 1) .. out
+        n = math.floor(n / 36)
+    until n == 0
+    return out
 end
 
 -- Unit summary used for your target and for alt-clicked units.
@@ -242,24 +282,73 @@ end
 
 -- Assembly --------------------------------------------------------------------------------------
 
+-- The bridge remembers these per character (context.ts), so each goes out only when it changed;
+-- one that became empty goes out as "none". Remembered against the bridge's epoch: a bridge that
+-- lost its memory has a new one, and everything goes out again. An older bridge (no epoch) gets
+-- everything every time.
+local STICKY = { character = true, remember = true, talents = true }
+
+local function memory()
+    local epoch = ns.core.ctxEpoch()
+    if not epoch then return nil end
+    local m = WaiCharDB.ctxMemory
+    if not m or m.epoch ~= epoch then
+        m = { epoch = epoch, sent = {}, done = {} }
+        WaiCharDB.ctxMemory = m
+    end
+    return m
+end
+
+-- Words that mean the question is about chat, which then gets more room.
+local CHATTY = { "chat", "said", "say", "says", "whisper", "general", "guild", "party", "trade", "lfg", "yell" }
+local function aboutChat(message)
+    message = (message or ""):lower()
+    for _, word in ipairs(CHATTY) do
+        if message:find("%f[%a]" .. word .. "%f[%A]") then return true end
+    end
+end
+
 -- subject: optional { details = "..." } for whatever the player alt-clicked or attached.
 -- tab: the chat this message is for ({ name, manual }), so Claude can title it.
--- message: the player's text; mentioning macros adds the macro list (too big to send every time).
+-- message: the player's text; it decides what's relevant (macros, chat) and how much room is left.
+-- The screenshot holds about 3 KB, so fields go in priority order, each within its own budget,
+-- and whatever doesn't fit (a remembered field) simply goes with a later message.
 function context.collect(subject, tab, message)
-    local lines = {}
-    local function add(key, fn)
+    local room = ns.core.room(message)
+    local mem = memory()
+    local lines, used = {}, 0
+    -- Remembered fields go whole or wait for a later message; the rest are shortened to fit.
+    local function put(key, value, budget, whole)
+        local line = key .. ": " .. value
+        local cap = math.min(budget or math.huge, room - used - 1)
+        if #line > cap then
+            if whole or cap < 60 then return false end
+            line = line:sub(1, cap - 3) .. "..."
+        end
+        lines[#lines + 1] = line
+        used = used + #line + 1
+        return true
+    end
+    local function add(key, fn, budget)
         local ok, value = pcall(fn)
-        if ok and usable(value) then lines[#lines + 1] = key .. ": " .. tostring(value) end
+        if not ok then return end
+        if not STICKY[key] then
+            if usable(value) then put(key, tostring(value), budget) end
+            return
+        end
+        value = usable(value) and tostring(value) or "none"
+        if mem and mem.sent[key] == value then return end
+        if put(key, value, budget, mem ~= nil) and mem then mem.sent[key] = value end
     end
     add("character", function()
         return ("%s-%s, level %d %s %s"):format(UnitName("player"), GetRealmName(),
             UnitLevel("player"), UnitRace("player"), UnitClass("player"))
     end)
-    add("subject", function() return subject and subject.details end)
+    add("subject", function() return subject and subject.details end, 900)
     add("macros", function()
         if not (message or ""):lower():find("macro") then return nil end
-        return "\n" .. ns.macros.describe(message, 1400)
-    end)
+        return "\n" .. ns.macros.describe(message, 1000)
+    end, 1100)
     add("chat title", function()
         if not tab then return nil end
         return ("%q %s"):format(tab.name, tab.manual and "(named by the player; keep it)" or "(you can retitle it)")
@@ -267,21 +356,73 @@ function context.collect(subject, tab, message)
     add("remember", function()
         local notes = context.notes()
         return #notes > 0 and table.concat(notes, "; ") or nil
-    end)
-    add("target", function() return context.unit("target") end)
+    end, 500)
+    add("target", function() return context.unit("target") end, 300)
     add("zone", function()
         local sub = GetSubZoneText()
         return sub ~= "" and ("%s, %s"):format(sub, GetZoneText()) or GetZoneText()
     end)
-    add("combat", function() return context.combat(false) end)
+    add("gold", function() return floor(GetMoney() / 10000) end)
     add("mode", function() return WaiCharDB.tiktok and "TikTok mode is on" or nil end)
     add("killstreak", function()
         local n = ns.streak.count()
         return n > 0 and (n .. " kills without dying (11 = Chopper Gunner, 25 = Nuke)") or nil
     end)
-    add("recent chat", function() return ns.ask.chatLines(8) end)
     add("talents", talents)
-    add("gold", function() return floor(GetMoney() / 10000) end)
-    add("quests", quests)
+    -- The quest log: whole the first time, then only quests that changed ("quests~", by quest ID)
+    -- or left the log ("quests-"), since objectives tick with every kill.
+    local ok, log, ids = pcall(questLog)
+    if ok then
+        local keyed = #ids == #log -- every quest has an ID, so the bridge can update it in place
+        if not (mem and keyed and mem.quests) then
+            local value = #log > 0 and ("\n" .. table.concat(log, "\n")) or "none"
+            if put("quests", value, nil, mem ~= nil) and mem and keyed then
+                mem.quests = {}
+                for i, line in ipairs(log) do mem.quests[ids[i]] = line end
+            end
+        else
+            local changed, now, gone = {}, {}, {}
+            for i, line in ipairs(log) do
+                now[ids[i]] = line
+                if mem.quests[ids[i]] ~= line then changed[#changed + 1] = ids[i] end
+            end
+            for id in pairs(mem.quests) do
+                if not now[id] then gone[#gone + 1] = id end
+            end
+            local text = {}
+            for _, id in ipairs(changed) do text[#text + 1] = now[id] end
+            if #changed > 0 and put("quests~", "\n" .. table.concat(text, "\n"), nil, true) then
+                for _, id in ipairs(changed) do mem.quests[id] = now[id] end
+            end
+            if #gone > 0 and put("quests-", table.concat(gone, ","), nil, true) then
+                for _, id in ipairs(gone) do mem.quests[id] = nil end
+            end
+        end
+    end
+    add("combat", function() return context.combat(false) end, 600)
+    -- Chat is the biggest and usually the least relevant, so it gets a budget of its own.
+    local chatty = aboutChat(message)
+    add("recent chat", function() return ns.ask.chatLines(chatty and 12 or 6, chatty and 1200 or 450) end)
+    -- Completed quests, a chunk per message until the bridge has them all, then one per turn-in:
+    -- "done" starts the bridge's list over, "done+" adds to it. Too big to resend every time, so
+    -- only with a bridge that remembers.
+    if mem then
+        local new = {}
+        for _, id in ipairs(completedIDs()) do
+            if not mem.done[id] then new[#new + 1] = id end
+        end
+        table.sort(new)
+        local key = next(mem.done) and "done+" or "done"
+        local parts, prev, size = {}, 0, #key + 2
+        for _, id in ipairs(new) do
+            local part = base36(#parts == 0 and id or id - prev)
+            if used + size + #part + 2 > room or size > 1200 then break end
+            parts[#parts + 1] = part
+            size, prev = size + #part + 1, id
+        end
+        if #parts > 0 and put(key, table.concat(parts, ",")) then
+            for i = 1, #parts do mem.done[new[i]] = true end
+        end
+    end
     return table.concat(lines, "\n")
 end

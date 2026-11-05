@@ -748,7 +748,66 @@ assert(ns.core.track() == "nightly", "bridge confirms")
 slotData.default = { who = "Backshot-Forever", beat = 121, track = "stable", chats = {} }
 now = now + 2; __ticker.fn(); tick(1.1, 1)
 assert(ns.core.track() == "stable", "the bridge's answer wins")
+ns.settings.toggle(); ns.settings.toggle() -- reopen to refresh the About lines
+assert(#texts("^wai %d") == 1 and #texts("^Bridge: ") == 1 and #texts("·  bridge") == 0, "About: version and bridge on their own lines")
 print("track ok")
+
+-- Context: the bridge remembers slow fields (epoch from its snapshot), so a full quest log, talents
+-- and 400 completed quests all get through even with General chat at its busiest.
+_G.GetNumQuestLogEntries = function() return 20 end
+local progress = {}
+_G.GetQuestLogTitle = function(i) return "Quest number " .. i .. " with a long name", 10 + i, nil, false, nil, i % 5 == 0 and 1 or nil, nil, 1000 + i end
+_G.GetNumQuestLeaderBoards = function() return 2 end
+_G.GetQuestLogLeaderBoard = function(j, i) return ("Gnarlpine thing %d slain: %d/10"):format(j, progress[i] or 3) end
+local completed = {}
+for i = 1, 400 do completed[i] = (i * 7919) % 90000 + 1 end -- spread out like real IDs
+_G.C_QuestLog = { GetAllCompletedQuestIDs = function() local copy = {} for i, v in ipairs(completed) do copy[i] = v end return copy end }
+for i = 1, 30 do fire("CHAT_MSG_CHANNEL", ("spam %d "):format(i) .. ("x"):rep(240), "Spammer" .. i, nil, nil, nil, nil, nil, nil, "General - Teldrassil") end
+slotData.default = { who = "Backshot-Forever", beat = 130, ctxEpoch = "e1", chats = {} }
+now = now + 2; __ticker.fn(); tick(1.1, 1)
+assert(ns.core.ctxEpoch() == "e1", "epoch from the bridge")
+local function decode(value, into) local prev, n = 0, 0; for part in value:gmatch("[^,]+") do n = n + 1; local v = tonumber(part, 36); prev = n == 1 and v or prev + v; into[prev] = true end end
+local got, ctxs = {}, {}
+local function ask(text)
+  SlashCmdList.WAI(text)
+  local m = WaiDB.outbox[#WaiDB.outbox]
+  ctxs[#ctxs + 1] = m.ctx
+  assert(#m.text + 1 + #m.ctx <= ns.core.room("") , "fits the screenshot")
+  for key, value in m.ctx:gmatch("\n?(done%+?): ([^\n]*)") do decode(value, got) end
+  fire("SCREENSHOT_SUCCEEDED")
+  return m.ctx
+end
+local first = ask("where do i go next?")
+assert(first:find("character: ") and first:find("talents: ") and first:find("Quest number 20 with a long name #1020"), "the full quest log fits: " .. #first)
+assert(first:find("Gnarlpine thing 2 slain: 3/10") and first:find("#1005: complete"), "objectives and completion")
+local chatPart = first:match("recent chat: (.-)\n%a[%a ]*:") or first:match("recent chat: (.*)$")
+assert(chatPart and #chatPart <= 450 and chatPart:find("%[General%] Spammer30: spam 30") and not chatPart:find("Teldrassil"), "chat is capped, newest first, short channel names")
+local second = ask("and after that?")
+assert(not second:find("character: ") and not second:find("quests") and not second:find("talents: "), "unchanged fields stay home: " .. second)
+assert((first .. "\n" .. second):find("\ndone: "), "completed quests start once there's room")
+local third = ask("and then?")
+assert(third:find("\ndone%+: "), "completed quests continue")
+for _ = 1, 10 do ask("next?") end
+local count = 0; for id in pairs(got) do count = count + 1 end
+assert(count == 400, "all completed quests arrive in chunks: " .. count)
+for _, id in ipairs(completed) do assert(got[id], "quest " .. id) end
+local quiet = ask("ok")
+assert(not quiet:find("done"), "nothing left to send")
+completed[#completed + 1] = 99999
+progress[3] = 4
+local after = ask("turned one in")
+assert(after:find("done%+: 255r") and after:find("quests~: \n%- %[13%] Quest number 3 with a long name #1003: Gnarlpine thing 1 slain: 4/10"), "a turn-in and a changed objective go out")
+assert(not after:find("Quest number 4 "), "only the quest that changed: " .. after)
+local chatty = ask("what did they say in general chat?")
+assert(#(chatty:match("recent chat: (.*)$") or "") > 450, "asking about chat gets more of it")
+-- A bridge that lost its memory has a new epoch: everything goes again, completed quests from scratch.
+slotData.default = { who = "Backshot-Forever", beat = 131, ctxEpoch = "e2", chats = {} }
+now = now + 2; __ticker.fn(); tick(1.1, 1)
+local again = ask("hi again")
+local again2 = ask("and?")
+assert(again:find("character: ") and again:find("quests: ") and (again .. "\n" .. again2):find("\ndone: "), "new epoch resends everything")
+local f = io.open(os.getenv("WAI_CTX_DUMP") or "/dev/null", "w"); if f then f:write(table.concat(ctxs, "\0")); f:close() end
+print("context ok")
 
 -- Suggestions while typing.
 subjectInput:SetText("/re")

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.3-nightly.3 (2026-11-05)
+
+- Settings now dock to the chat window: the panel sits beside it (on the left if the window is
+  near the right edge of the screen), moves with it when you drag it, and closes with it.
+  Opening settings while the chat is closed opens both.
+
 ## 0.9.3-nightly.2 (2026-11-05)
 
 wai always knows your quests, even when General chat is busy.

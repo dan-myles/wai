@@ -34,7 +34,9 @@ function Obj:GetStringWidth() return #self.text * 6 end
 function Obj:GetUnboundedStringWidth() return #self.text * 6 end
 function Obj:GetStringHeight() return 14 * math.max(1, math.ceil(#self.text * 6 / math.max(1, self.w))) end
 function Obj:Show() local was = self.shown; self.shown = true; if not was and self.scripts.OnShow then self.scripts.OnShow(self) end end
-function Obj:Hide() self.shown = false end
+function Obj:Hide() local was = self.shown; self.shown = false; if was and self.scripts.OnHide then self.scripts.OnHide(self) end end
+function Obj:SetPoint(...) self.points = self.points or {}; self.points[#self.points + 1] = { ... } end
+function Obj:ClearAllPoints() self.points = {} end
 function Obj:SetShown(s) if s then self:Show() else self:Hide() end end
 function Obj:IsShown() return self.shown end
 function Obj:IsMouseOver() return false end
@@ -480,6 +482,8 @@ fire("SCREENSHOT_SUCCEEDED")
 clickText("Check for updates")
 assert(lastPayload() == 5, "check for updates sends kind 5")
 fire("SCREENSHOT_SUCCEEDED")
+assert(not WaiSettings:IsShown(), "settings closed with the chat window")
+ns.commands.run("/settings"); assert(WaiSettings:IsShown() and WaiFrame:IsShown(), "/settings reopens both")
 ns.commands.run("/settings"); assert(not WaiSettings:IsShown(), "/settings toggles closed")
 print("settings ok")
 
@@ -808,6 +812,23 @@ local again2 = ask("and?")
 assert(again:find("character: ") and again:find("quests: ") and (again .. "\n" .. again2):find("\ndone: "), "new epoch resends everything")
 local f = io.open(os.getenv("WAI_CTX_DUMP") or "/dev/null", "w"); if f then f:write(table.concat(ctxs, "\0")); f:close() end
 print("context ok")
+
+-- Settings dock to the chat window: beside it (right, or left near the screen edge), opening it if
+-- needed, following it when it moves and closing with it.
+if WaiSettings:IsShown() then ns.settings.toggle() end
+WaiFrame:Hide()
+assert(not WaiSettings:IsShown(), "closes with the chat window")
+ns.settings.toggle()
+assert(WaiFrame:IsShown() and WaiSettings:IsShown(), "opening settings opens the chat window")
+local p = WaiSettings.points[#WaiSettings.points]
+assert(p[1] == "TOPLEFT" and p[2] == WaiFrame and p[3] == "TOPRIGHT", "docked on the right")
+function WaiFrame:GetRight() return 1900 end
+function UIParent:GetRight() return 2000 end
+WaiFrame:StopMovingOrSizing()
+p = WaiSettings.points[#WaiSettings.points]
+assert(p[1] == "TOPRIGHT" and p[2] == WaiFrame and p[3] == "TOPLEFT", "flips left near the screen edge")
+WaiFrame.GetRight, UIParent.GetRight = nil, nil
+print("settings dock ok")
 
 -- Suggestions while typing.
 subjectInput:SetText("/re")

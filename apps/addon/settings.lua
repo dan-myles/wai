@@ -29,7 +29,6 @@ end
 local HOMES = {
     WaiFrame = { "CENTER", 0, 0 },
     WaiFunMenu = { "CENTER", -240, 0 },
-    WaiSettings = { "CENTER", 240, 0 },
     WaiVideo = { "CENTER", 0, 120 },
     WaiWaypoint = { "TOP", 0, -140 },
 }
@@ -186,6 +185,18 @@ local SECTIONS = {
 
 local panel, rows, about = nil, {}, nil
 
+-- The panel sits beside the chat window, on the right if the screen has room, otherwise the left.
+-- Anchored, not positioned, so dragging the chat window carries it along.
+local function dock()
+    local right = (WaiFrame:GetRight() or 0) + 12 + WIDTH <= (UIParent:GetRight() or math.huge)
+    panel:ClearAllPoints()
+    if right then
+        panel:SetPoint("TOPLEFT", WaiFrame, "TOPRIGHT", 12, 0)
+    else
+        panel:SetPoint("TOPRIGHT", WaiFrame, "TOPLEFT", -12, 0)
+    end
+end
+
 local function section(parent, text, y)
     local label = T.label(parent, "display", 10, C.goldDim)
     label:SetPoint("TOPLEFT", 16, y)
@@ -215,14 +226,7 @@ local function build()
     panel:SetFrameStrata("DIALOG")
     panel:SetToplevel(true)
     panel:SetClampedToScreen(true)
-    panel:SetMovable(true)
     panel:EnableMouse(true)
-    panel:RegisterForDrag("LeftButton")
-    panel:SetScript("OnDragStart", panel.StartMoving)
-    panel:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        WaiDB.settingsPos = { x = self:GetLeft(), y = self:GetTop() }
-    end)
     tinsert(UISpecialFrames, "WaiSettings")
     T.panel(panel, 10)
 
@@ -288,14 +292,11 @@ local function build()
     end
     panel:SetHeight(-y + 6)
 
-    local pos = WaiDB.settingsPos
-    if pos then
-        panel:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", pos.x, pos.y)
-    elseif WaiFrame and WaiFrame:IsShown() then
-        panel:SetPoint("TOPLEFT", WaiFrame, "TOPRIGHT", 12, 0)
-    else
-        panel:SetPoint("CENTER", 240, 0)
-    end
+    -- Docked to the chat window: it moves with it and closes with it.
+    hooksecurefunc(WaiFrame, "StopMovingOrSizing", function()
+        if panel:IsShown() then dock() end
+    end)
+    WaiFrame:HookScript("OnHide", function() panel:Hide() end)
     local t = 0
     panel:SetScript("OnUpdate", function(_, elapsed)
         t = t + elapsed
@@ -312,6 +313,8 @@ end
 function settings.toggle()
     if not panel then build() end
     if panel:IsShown() then return panel:Hide() end
+    if not WaiFrame:IsShown() then ns.ui.show() end -- it belongs to the chat window
+    dock()
     for _, row in ipairs(rows) do row:Refresh() end
     refreshAbout()
     panel:Show()

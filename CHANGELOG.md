@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0 (2026-11-05)
+
+CLIProxyAPI support. Both agents can send their model calls through an API gateway.
+
+- `wai proxy on` routes Claude and Codex through [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)
+  at its default address (`http://127.0.0.1:8317`). Use `wai proxy <url>` for any other address, with
+  or without `/v1`. `--key` sets the gateway's API key and `--model` picks the model both agents ask for.
+  `wai proxy off` goes back to each CLI's own sign-in.
+- Your own `~/.claude` and `~/.codex` configs stay as they are: wai passes the gateway to each CLI
+  per run. It works for the background service too, which doesn't see your shell's environment.
+- The key goes to the CLI through its environment, never on the command line, and a claude.ai login
+  is never sent to the gateway.
+- `wai status` checks that the gateway answers and accepts the key.
+
 ## 0.7.0 (2026-11-05)
 
 Codex support. wai can now answer with Claude Code or OpenAI's Codex CLI.

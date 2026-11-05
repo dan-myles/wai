@@ -1,3 +1,5 @@
+import type { Config } from "./files"
+
 // What every agent backend shares: which CLIs exist, the wai skill, and a JSONL process reader.
 // Each agent (claude.ts, codex.ts) runs its CLI headless in the addon folder with the skill
 // injected, reports progress, and returns a session id the next message in that chat resumes.
@@ -49,6 +51,15 @@ export function currentAgent(): Agent {
   return AGENTS.find((a) => agentPath(a)) ?? "claude"
 }
 
+// CLIProxyAPI's default address. One gateway serves both agents: Claude Code speaks the Messages
+// API at the root, Codex the Responses API under /v1.
+export const DEFAULT_PROXY = "http://127.0.0.1:8317"
+export type Proxy = NonNullable<Config["proxy"]>
+export const proxy = (): Proxy | undefined => readConfig().proxy
+// Accepts the address with or without /v1 so either form from a gateway's docs works.
+export const proxyRoot = (url: string) =>
+  url.trim().replace(/\/+$/, "").replace(/\/v1$/, "")
+
 // The wai skill: what the agent knows and can do. In a source checkout it's read on every call so
 // edits apply immediately; the compiled binary carries its own copy.
 const SKILL_FILE = resolve(import.meta.dir, "../SKILL.md")
@@ -57,13 +68,16 @@ export const skill = async () =>
     ? embeddedSkill
     : await readFile(SKILL_FILE, "utf-8").catch(() => embeddedSkill)
 
-// Runs an agent CLI in the addon folder and hands each stdout line to `onLine`.
+// Runs an agent CLI in the addon folder and hands each stdout line to `onLine`. `env` adds to the
+// bridge's own environment (proxy settings), never replaces it.
 export async function streamLines(
   args: string[],
   onLine: (line: string) => void,
+  env: Record<string, string> = {},
 ): Promise<{ code: number; stderr: string }> {
   const proc = Bun.spawn(args, {
     cwd: ADDON_DIR,
+    env: { ...process.env, ...env },
     stderr: "pipe",
     stdin: "ignore",
     stdout: "pipe",

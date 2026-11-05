@@ -16,9 +16,12 @@ import {
   AGENTS,
   INSTALL_HINTS,
   NAMES,
+  DEFAULT_PROXY,
   agentPath,
   currentAgent,
   isAgent,
+  proxy,
+  proxyRoot,
 } from "./agent"
 import { HOME, LOG_FILE, PID_FILE, writeConfig } from "./files"
 import { doctor, install, uninstall } from "./install"
@@ -37,6 +40,8 @@ Usage: wai <command>
   status                   check that everything wai needs is in place (alias: doctor)
   logs [-f]                show the bridge log, or follow it
   agent [claude|codex]     show or choose which agent answers (also /settings in game)
+  proxy [on|off|<url>] [--key <key>] [--model <model>]
+                           send both agents through an API gateway like CLIProxyAPI (on: ${DEFAULT_PROXY})
   uninstall [--purge]      remove wai from WoW and login items (--purge also deletes chats and settings)
   telemetry [on|off|show|url <url>]
                            anonymous error reports: off until you turn them on (see docs/TELEMETRY.md)
@@ -144,6 +149,39 @@ function agent(args: string[]) {
   }
 }
 
+// Like the agent choice, read on every message: no restart needed.
+function gateway(args: string[]) {
+  const flag = (name: string) => {
+    const i = args.indexOf(`--${name}`)
+    return i !== -1 ? args[i + 1] : undefined
+  }
+  const [target] = args
+  const current = proxy()
+  if (target === "off") {
+    writeConfig({ proxy: undefined })
+  } else if (target) {
+    const url =
+      target === "on" || target.startsWith("--")
+        ? (current?.url ?? DEFAULT_PROXY)
+        : proxyRoot(target)
+    if (!/^https?:\/\/[^/]/.test(url)) {
+      throw new Error(`"${target}" isn't a URL; use e.g. ${DEFAULT_PROXY}`)
+    }
+    // An empty value clears a key or model: --model ""
+    const key = flag("key") ?? current?.key
+    const model = flag("model") ?? current?.model
+    writeConfig({
+      proxy: { key: key || undefined, model: model || undefined, url },
+    })
+  }
+  const now = proxy()
+  console.log(
+    now
+      ? `proxy on: ${now.url}${now.key ? " (with key)" : ""}${now.model ? `, model ${now.model}` : ""}`
+      : "proxy off: agents use their own sign-in",
+  )
+}
+
 async function logs(follow: boolean) {
   const text = await readFile(LOG_FILE, "utf-8").catch(() => "")
   console.log(text.split("\n").slice(-80).join("\n"))
@@ -200,6 +238,10 @@ try {
     }
     case "agent": {
       agent(args)
+      break
+    }
+    case "proxy": {
+      gateway(args)
       break
     }
     case "uninstall": {

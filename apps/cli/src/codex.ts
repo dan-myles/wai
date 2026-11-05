@@ -1,10 +1,10 @@
-import type { OnUpdate, Reply } from "./agent"
+import type { OnUpdate, Proxy, Reply } from "./agent"
 
 // Codex as a wai agent: `codex exec --json`. Codex reports whole items (a message, a search, a
 // command) rather than token deltas, so text arrives a message at a time.
 import { basename } from "node:path"
 
-import { requirePath, skill, streamLines } from "./agent"
+import { proxy, requirePath, skill, streamLines } from "./agent"
 
 interface CodexItem {
   type?: string
@@ -114,6 +114,7 @@ export function codexArgs(
   prompt: string,
   sessionId: string | undefined,
   instructions: string,
+  gateway?: Proxy,
 ): string[] {
   const options = [
     "--json",
@@ -126,6 +127,27 @@ export function codexArgs(
     "-c",
     'web_search="live"',
   ]
+  if (gateway) {
+    // A provider defined inline, so the player's own config.toml is left alone. The key travels as
+    // a bearer token read from WAI_PROXY_KEY (see runCodex), never on the command line.
+    const provider = "model_providers.wai_proxy"
+    options.push(
+      "-c",
+      'model_provider="wai_proxy"',
+      "-c",
+      `${provider}.name="wai proxy"`,
+      "-c",
+      `${provider}.base_url=${JSON.stringify(`${gateway.url}/v1`)}`,
+      "-c",
+      `${provider}.wire_api="responses"`,
+    )
+    if (gateway.key) {
+      options.push("-c", `${provider}.env_key="WAI_PROXY_KEY"`)
+    }
+    if (gateway.model) {
+      options.push("-c", `model=${JSON.stringify(gateway.model)}`)
+    }
+  }
   return sessionId
     ? [bin, "exec", "resume", ...options, sessionId, prompt]
     : [bin, "exec", ...options, prompt]
@@ -136,19 +158,33 @@ export async function runCodex(
   sessionId: string | undefined,
   onUpdate: OnUpdate,
 ): Promise<Reply> {
-  const args = codexArgs(requirePath("codex"), prompt, sessionId, await skill())
+  const gateway = proxy()
+  const args = codexArgs(
+    requirePath("codex"),
+    prompt,
+    sessionId,
+    await skill(),
+    gateway,
+  )
   const progress: CodexProgress = { activity: "Thinking", text: "" }
-  const { code, stderr } = await streamLines(args, (line) => {
-    let ev: CodexEvent
-    try {
-      ev = JSON.parse(line)
-    } catch {
-      return
-    }
-    if (applyEvent(progress, ev)) {
-      onUpdate(progress.text, progress.activity)
-    }
-  })
+  const env: Record<string, string> = gateway?.key
+    ? { WAI_PROXY_KEY: gateway.key }
+    : {}
+  const { code, stderr } = await streamLines(
+    args,
+    (line) => {
+      let ev: CodexEvent
+      try {
+        ev = JSON.parse(line)
+      } catch {
+        return
+      }
+      if (applyEvent(progress, ev)) {
+        onUpdate(progress.text, progress.activity)
+      }
+    },
+    env,
+  )
   if (code !== 0 || progress.failed || !progress.sessionId) {
     throw new Error(
       (

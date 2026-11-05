@@ -27,6 +27,8 @@ export interface Config {
   codexPath?: string
   // Which agent answers: "claude" | "codex" (agent.ts). Unset means whichever is installed.
   agent?: string
+  // An API gateway such as CLIProxyAPI that both agents send their model calls through (`wai proxy`).
+  proxy?: { url: string; key?: string; model?: string }
   // Opt-in anonymous error reports (docs/TELEMETRY.md); undefined until the player chooses.
   telemetry?: boolean
   telemetryUrl?: string

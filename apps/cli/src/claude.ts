@@ -1,9 +1,9 @@
-import type { OnUpdate, Reply } from "./agent"
+import type { OnUpdate, Proxy, Reply } from "./agent"
 
 // Claude Code as a wai agent: `claude -p` with stream-json, so text streams token by token.
 import { basename } from "node:path"
 
-import { requirePath, skill, streamLines } from "./agent"
+import { proxy, requirePath, skill, streamLines } from "./agent"
 
 interface ToolInput {
   query?: string
@@ -64,6 +64,30 @@ export function describe(name: string, input: ToolInput = {}): string {
       return "Working"
     }
   }
+}
+
+// Points Claude Code at the gateway. The token is always set so a claude.ai login is never sent
+// to the gateway; a model also replaces the tier defaults, because Claude Code uses the small one
+// for background work (reading fetched pages) that the gateway may have no route for.
+export function claudeEnv(p?: Proxy): Record<string, string> {
+  if (!p) {
+    return {}
+  }
+  const env: Record<string, string> = {
+    ANTHROPIC_AUTH_TOKEN: p.key ?? "wai",
+    ANTHROPIC_BASE_URL: p.url,
+  }
+  if (p.model) {
+    for (const tier of [
+      "MODEL",
+      "DEFAULT_OPUS_MODEL",
+      "DEFAULT_SONNET_MODEL",
+      "DEFAULT_HAIKU_MODEL",
+    ]) {
+      env[`ANTHROPIC_${tier}`] = p.model
+    }
+  }
+  return env
 }
 
 export async function runClaude(
@@ -147,7 +171,7 @@ export async function runClaude(
     onUpdate(text, activity)
   }
 
-  const { code, stderr } = await streamLines(args, handle)
+  const { code, stderr } = await streamLines(args, handle, claudeEnv(proxy()))
 
   if (code !== 0 || !result || result.is_error) {
     throw new Error(

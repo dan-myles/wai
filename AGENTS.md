@@ -30,7 +30,9 @@ it works and docs/DESIGN.md for the visual language.
 - The client has secret values: guard unit data with `issecretvalue` + `pcall` (see `context.lua`).
   The combat log is closed to addons; use `C_DamageMeter` and `C_DeathRecap`.
 - Agents live in `apps/cli/src/agent.ts` (shared), `claude.ts` and `codex.ts`; each chat's session
-  belongs to one agent. The agent's capabilities live in `apps/cli/SKILL.md`, injected into every prompt. Reply markup
+  belongs to one agent. An optional gateway (`wai proxy`, e.g. CLIProxyAPI) is passed to each CLI per
+  run through flags and env, never by editing the player's own CLI configs. The agent's capabilities live in
+  `apps/cli/SKILL.md`, injected into every prompt. Reply markup
   (`[[item:..]]`, `[[setway:..]]`, `[[remember:..]]`...) is rendered and acted on by `links.lua` and `wai.lua`.
 - Telemetry is opt-in and anonymous. Never add a field to reports without updating
   docs/TELEMETRY.md and the collector's schema, and never send chat text or names.

@@ -77,3 +77,22 @@ test("passes the skill as TOML developer instructions and resumes by id", () => 
   expect(resumed.slice(-2)).toEqual(["01a1ac44", "again"])
   expect(resumed).toContain('sandbox_mode="workspace-write"')
 })
+
+test("sends Codex through a gateway without touching config.toml", () => {
+  const args = codexArgs("codex", "hi", undefined, "skill", {
+    key: "sk-1",
+    model: "gpt-x",
+    url: "http://127.0.0.1:8317",
+  })
+  expect(args).toContain('model_provider="wai_proxy"')
+  expect(args).toContain(
+    'model_providers.wai_proxy.base_url="http://127.0.0.1:8317/v1"',
+  )
+  expect(args).toContain('model_providers.wai_proxy.env_key="WAI_PROXY_KEY"')
+  expect(args).toContain('model="gpt-x"')
+  // The key itself never appears in the process list.
+  expect(args.some((a) => a.includes("sk-1"))).toBe(false)
+  expect(codexArgs("codex", "hi", undefined, "skill").join(" ")).not.toContain(
+    "wai_proxy",
+  )
+})

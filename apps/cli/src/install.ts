@@ -1,3 +1,5 @@
+import type { Proxy } from "./agent"
+
 // `wai install`, `wai uninstall` and `wai doctor`: put the addon into WoW: Forever, create the
 // helper slot addons, and run the bridge at login.
 import { existsSync } from "node:fs"
@@ -15,7 +17,14 @@ import {
 import { join } from "node:path"
 
 import { extractAddon } from "./addon-files"
-import { AGENTS, INSTALL_HINTS, NAMES, agentPath, currentAgent } from "./agent"
+import {
+  AGENTS,
+  INSTALL_HINTS,
+  NAMES,
+  agentPath,
+  currentAgent,
+  proxy,
+} from "./agent"
 import {
   ADDON_DIR,
   COMPILED,
@@ -184,6 +193,25 @@ export async function uninstall(args: string[]) {
 }
 
 // `wai doctor`: everything that has to be true for wai to work.
+// The model list is the cheapest call an OpenAI-compatible gateway answers, and it checks the key.
+async function reachable(p: Proxy): Promise<[boolean, string]> {
+  try {
+    const res = await fetch(`${p.url}/v1/models`, {
+      headers: p.key ? { Authorization: `Bearer ${p.key}` } : {},
+      signal: AbortSignal.timeout(3000),
+    })
+    if (!res.ok) {
+      return [false, `${p.url} answered ${res.status}; check --key`]
+    }
+    const { data } = (await res.json().catch(() => ({}))) as {
+      data?: unknown[]
+    }
+    return [true, `${p.url}${data ? `, ${data.length} models` : ""}`]
+  } catch {
+    return [false, `${p.url} isn't answering; start it or run wai proxy off`]
+  }
+}
+
 export async function doctor() {
   const checks: [string, boolean, string][] = []
   const wowDir = findWowDir()
@@ -232,6 +260,10 @@ export async function doctor() {
       !!version || agent !== answering,
       version ? `${version}${using}` : `not installed: ${INSTALL_HINTS[agent]}`,
     ])
+  }
+  const gateway = proxy()
+  if (gateway) {
+    checks.push(["proxy", ...(await reachable(gateway))])
   }
   const pid = await bridgePid()
   checks.push([

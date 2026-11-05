@@ -5,6 +5,7 @@ Ideas we're not working on yet. Each needs a feasibility check first.
 Nothing is open right now.
 
 ## Done
+- **CLIProxyAPI support (v0.8.0):** `wai proxy` routes Claude and Codex through an API gateway with its own key and model, passed per run so the player's CLI configs stay untouched; `wai status` checks the gateway.
 - **Codex support (v0.7.0):** Codex answers alongside Claude: an Agent switch in `/settings` and `wai agent`, per-chat sessions that hand the recent conversation to the new agent on a switch, and the full skill, markup, web search and UI modules through `codex exec --json`.
 - **Auto-updating tab titles (v0.6.0):** Claude titles a chat with a hidden `[[title:…]]` on its first reply and again when the topic shifts; the context tells it the current title and whether the player named the tab; hand-named tabs never change; new titles fade in with a gold glow.
 - **Opt-in telemetry (v0.5.0):** off by default; a one-time consent banner and a Privacy section in `/settings` (switch plus "See what's sent"); scrubbed Lua errors and stalled streams from the addon plus bridge errors; `wai telemetry on|off|show|url`; and a validating collector in `apps/telemetry`. Documented in docs/TELEMETRY.md.

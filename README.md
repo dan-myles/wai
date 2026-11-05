@@ -98,6 +98,7 @@
 
 You need **WoW: Forever** and an agent CLI, signed in once:
 [Claude Code](https://claude.ai/install) (`claude`) or [Codex](https://github.com/openai/codex) (`npm install -g @openai/codex`, then `codex`). Have both? Pick in `/settings`.
+Running [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)? `wai proxy on --key <key>` sends both agents through it.
 
 **macOS**
 
@@ -194,6 +195,7 @@ flowchart LR
 | `wai status` | check everything wai needs (alias `doctor`) |
 | `wai logs [-f]` | show or follow the bridge log |
 | `wai agent [claude\|codex]` | show or choose which agent answers |
+| `wai proxy [on\|off\|<url>] [--key k] [--model m]` | send both agents through [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) or another gateway |
 | `wai telemetry [on\|off\|show\|url <url>]` | anonymous error reports |
 | `wai uninstall [--purge]` | remove wai from WoW and login items |
 

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.9.3 (2026-11-05)
+
+Everything from the 0.9.3 nightlies. `/reload` after updating; no client restart needed.
+
+- **Wowhead is wai's primary source.** Claude and Codex get fast `search` and `lookup` tools for
+  Wowhead's Forever database (IDs, tooltips, exact NPC and object coordinates) and read full pages
+  for quest givers and drop tables. Waypoints land on Wowhead's coordinates. The agent no longer
+  lists its sources unless you ask.
+- **wai always knows your quests.** The bridge remembers slow-changing context (character, notes,
+  talents, quest log), so each message only sends what changed. Quests carry IDs and objective
+  progress, and wai knows every quest you've turned in.
+- **Pick a key to toggle wai** in Settings → General → Toggle wai. It opens and closes wai, even
+  while you're typing, without typing the key into the input.
+- **Settings has tabs (General, Fun, About)** and docks beside the chat window. The Fun menu moved
+  into the Fun tab with TikTok mode, Killstreaks and the try-it buttons; `/fun` is gone.
+  Shift-right-click the minimap button opens the Fun tab.
+- **Update tracks:** Settings → About → Updates (or `wai track stable|nightly`) switches between
+  stable releases and nightly prereleases.
+- Fixes: blank space under replies that ended in hidden markup; the footer no longer says "Ready"
+  when idle; keys no longer get swallowed while settings are open.
+
 ## 0.9.3-nightly.11 (2026-11-05)
 
 - **Wowhead tools for the agent.** Claude and Codex both get `search` (a name to quest, NPC, item,

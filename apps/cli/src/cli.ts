@@ -254,6 +254,11 @@ try {
       console.log(`update track: ${currentTrack()}`)
       break
     }
+    case "mcp": {
+      // Started by the agent CLIs themselves, not by players.
+      await (await import("./mcp")).serve()
+      break
+    }
     case "proxy": {
       gateway(args)
       break

@@ -2,21 +2,14 @@
 // a tiny VBScript so no console window appears). Linux has no service; run `wai run` yourself.
 import { exists, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
-import { join, resolve } from "node:path"
+import { join } from "node:path"
 
-import { COMPILED, HOME, LOG_FILE, PID_FILE } from "./files"
+import { HOME, LOG_FILE, PID_FILE, selfCommand } from "./files"
 
 const LABEL = "com.wai.bridge"
 const PLIST = join(homedir(), "Library", "LaunchAgents", `${LABEL}.plist`)
 const TASK = "wai bridge"
 const VBS = join(HOME, "wai-bridge.vbs")
-
-// How to start the bridge: the binary itself, or bun + cli.ts in a source checkout.
-export function runCommand(): string[] {
-  return COMPILED
-    ? [process.execPath, "run"]
-    : [process.execPath, resolve(import.meta.dir, "cli.ts"), "run"]
-}
 
 const xml = (s: string) =>
   s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
@@ -52,7 +45,7 @@ export async function register(): Promise<string> {
     return "auto-start skipped (WAI_NO_SERVICE)"
   }
   await mkdir(HOME, { recursive: true })
-  const cmd = runCommand()
+  const cmd = selfCommand("run")
   if (process.platform === "darwin") {
     await mkdir(join(homedir(), "Library", "LaunchAgents"), { recursive: true })
     await writeFile(
@@ -158,7 +151,9 @@ export async function relaunchSelf(): Promise<never> {
   if (process.platform === "win32" && (await exists(VBS))) {
     launchWindows()
   } else if (process.platform !== "darwin") {
-    Bun.spawn(runCommand(), { stdio: ["ignore", "ignore", "ignore"] }).unref()
+    Bun.spawn(selfCommand("run"), {
+      stdio: ["ignore", "ignore", "ignore"],
+    }).unref()
   }
   process.exit(0)
 }

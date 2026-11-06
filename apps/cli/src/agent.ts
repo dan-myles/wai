@@ -7,7 +7,7 @@ import { readFile } from "node:fs/promises"
 import { resolve } from "node:path"
 
 import embeddedSkill from "../SKILL.md" with { type: "text" }
-import { ADDON_DIR, COMPILED, readConfig } from "./files"
+import { ADDON_DIR, COMPILED, readConfig, selfCommand } from "./files"
 
 export const AGENTS = ["claude", "codex"] as const
 export type Agent = (typeof AGENTS)[number]
@@ -59,6 +59,13 @@ export const proxy = (): Proxy | undefined => readConfig().proxy
 // Accepts the address with or without /v1 so either form from a gateway's docs works.
 export const proxyRoot = (url: string) =>
   url.trim().replace(/\/+$/, "").replace(/\/v1$/, "")
+
+// wai's own MCP server (mcp.ts), attached to every run under this name.
+export const MCP_NAME = "wowhead"
+export function mcpServer(): { command: string; args: string[] } {
+  const [command = "wai", ...args] = selfCommand("mcp")
+  return { command, args }
+}
 
 // The wai skill: what the agent knows and can do. In a source checkout it's read on every call so
 // edits apply immediately; the compiled binary carries its own copy.

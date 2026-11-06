@@ -183,6 +183,7 @@ flowchart LR
 - **Live UI and video** use the same trick with their own pools: 40 module slots for UI the agent writes, and 200 slots for 80×45 pixel video frames.
 - **Fallback:** `WaiDB.outbox` flushes on reload and `Data.lua` keeps history. Sequence numbers make resends harmless.
 - **The agent:** every prompt carries [`apps/cli/SKILL.md`](apps/cli/SKILL.md), which teaches the agent the game, the reply markup (`[[item:…]]`, `[[setway:…]]`, `[[remember:…]]`…) and how to build UI.
+- **Wowhead:** the bridge also gives each run its own `wai mcp` server with `search` and `lookup` tools for Wowhead's Forever database: names to IDs, tooltips, and NPC and object coordinates for the waypoint arrow. Full pages (quest givers, drop tables) go through the agent's web fetch.
 
 > [!NOTE]
 > wai reads game state, shows information and builds UI. It never automates gameplay.

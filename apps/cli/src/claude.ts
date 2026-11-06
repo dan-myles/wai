@@ -3,7 +3,14 @@ import type { OnUpdate, Proxy, Reply } from "./agent"
 // Claude Code as a wai agent: `claude -p` with stream-json, so text streams token by token.
 import { basename } from "node:path"
 
-import { proxy, requirePath, skill, streamLines } from "./agent"
+import {
+  MCP_NAME,
+  mcpServer,
+  proxy,
+  requirePath,
+  skill,
+  streamLines,
+} from "./agent"
 
 interface ToolInput {
   query?: string
@@ -57,6 +64,14 @@ export function describe(name: string, input: ToolInput = {}): string {
     case "Bash": {
       return "Running a command"
     }
+    case `mcp__${MCP_NAME}__search`: {
+      return input.query
+        ? `Searching Wowhead for "${input.query}"`
+        : "Searching Wowhead"
+    }
+    case `mcp__${MCP_NAME}__lookup`: {
+      return "Reading Wowhead"
+    }
     case "TodoWrite": {
       return "Planning"
     }
@@ -107,9 +122,13 @@ export async function runClaude(
     "acceptEdits",
     "--append-system-prompt",
     await skill(),
+    "--mcp-config",
+    JSON.stringify({ mcpServers: { [MCP_NAME]: mcpServer() } }),
     "--allowedTools",
     "WebSearch",
     "WebFetch",
+    `mcp__${MCP_NAME}__search`,
+    `mcp__${MCP_NAME}__lookup`,
   ]
   if (sessionId) {
     args.push("--resume", sessionId)

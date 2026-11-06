@@ -4,13 +4,23 @@ import type { OnUpdate, Proxy, Reply } from "./agent"
 // command) rather than token deltas, so text arrives a message at a time.
 import { basename } from "node:path"
 
-import { proxy, requirePath, skill, streamLines } from "./agent"
+import {
+  MCP_NAME,
+  mcpServer,
+  proxy,
+  requirePath,
+  skill,
+  streamLines,
+} from "./agent"
 
 interface CodexItem {
   type?: string
   text?: string
   query?: string
   changes?: { path?: string }[]
+  server?: string
+  tool?: string
+  arguments?: { query?: string }
 }
 // The parts of Codex's JSONL events the bridge reads.
 export interface CodexEvent {
@@ -45,7 +55,11 @@ export function describeItem(item: CodexItem): string {
       return "Running a command"
     }
     case "mcp_tool_call": {
-      return "Using a tool"
+      if (item.server !== MCP_NAME) {
+        return "Using a tool"
+      }
+      const query = item.tool === "search" ? item.arguments?.query : undefined
+      return query ? `Searching Wowhead for "${query}"` : "Reading Wowhead"
     }
     case "todo_list": {
       return "Planning"
@@ -115,6 +129,7 @@ export function codexArgs(
   sessionId: string | undefined,
   instructions: string,
   gateway?: Proxy,
+  server = mcpServer(),
 ): string[] {
   const options = [
     "--json",
@@ -126,6 +141,11 @@ export function codexArgs(
     'sandbox_mode="workspace-write"',
     "-c",
     'web_search="live"',
+    // MCP servers run outside the sandbox, so this is how Codex reaches Wowhead.
+    "-c",
+    `mcp_servers.${MCP_NAME}.command=${JSON.stringify(server.command)}`,
+    "-c",
+    `mcp_servers.${MCP_NAME}.args=${JSON.stringify(server.args)}`,
   ]
   if (gateway) {
     // A provider defined inline, so the player's own config.toml is left alone. The key travels as

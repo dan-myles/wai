@@ -7,6 +7,11 @@ import { join, resolve } from "node:path"
 // uses the repo itself (apps/cli for state, apps/addon for the addon), so development needs no install.
 // WAI_HOME overrides both (tests use it).
 export const COMPILED = /\$bunfs|~BUN/.test(import.meta.dir)
+// Runs a `wai` subcommand: the binary itself, or bun + cli.ts in a source checkout.
+export const selfCommand = (...args: string[]): string[] =>
+  COMPILED
+    ? [process.execPath, ...args]
+    : [process.execPath, resolve(import.meta.dir, "cli.ts"), ...args]
 const APPS = resolve(import.meta.dir, "../..")
 export const HOME =
   process.env.WAI_HOME ??

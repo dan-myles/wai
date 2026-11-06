@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.3-nightly.11 (2026-11-05)
+
+- **Wowhead tools for the agent.** Claude and Codex both get `search` (a name to quest, NPC, item,
+  spell, object and zone IDs) and `lookup` (tooltip, plus the zone and exact coordinates of NPCs and
+  objects) for Wowhead's Forever database. They answer in well under a second, so the agent checks
+  Wowhead far more often and sets waypoints at Wowhead's coordinates. Full pages still go through
+  the agent's web fetch.
+- Codex reads Wowhead data directly instead of going through web search.
+- The agent no longer lists its sources unless you ask.
+
 ## 0.9.3-nightly.10 (2026-11-05)
 
 - Fix: replies ending in hidden markup (TikTok mode's stream reactions) left a block of blank space

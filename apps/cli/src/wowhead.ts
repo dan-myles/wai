@@ -74,20 +74,40 @@ export function htmlText(html: string): string {
     .join("\n")
 }
 
-async function get<T>(url: string): Promise<T> {
+// Forever's data barely changes within a bridge's lifetime, and replies name the same things often.
+const cache = new Map<string, Promise<unknown>>()
+
+function get<T>(url: string): Promise<T> {
+  let hit = cache.get(url)
+  if (!hit) {
+    hit = fetchJson(url)
+    hit.catch(() => cache.delete(url))
+    cache.set(url, hit)
+  }
+  return hit as Promise<T>
+}
+
+async function fetchJson(url: string): Promise<unknown> {
   const res = await fetch(url, {
     headers: HEADERS,
     signal: AbortSignal.timeout(10_000),
   })
+  // An ID Forever doesn't have: an empty answer, which callers read as "not found".
+  if (res.status === 404) {
+    return {}
+  }
   if (!res.ok) {
     throw new Error(`Wowhead answered ${res.status} for ${url}`)
   }
-  return (await res.json()) as T
+  return await res.json()
 }
+
+export const typeOf = (r: SearchResult): WowheadType | undefined =>
+  r.type === undefined ? undefined : TYPE_IDS[r.type]
 
 export function formatResults(results: SearchResult[]): string {
   const lines = results.flatMap((r) => {
-    const type = r.type === undefined ? undefined : TYPE_IDS[r.type]
+    const type = typeOf(r)
     if (!type || r.id === undefined) {
       return []
     }
@@ -101,14 +121,30 @@ export function formatResults(results: SearchResult[]): string {
   })
   return lines.length
     ? lines.slice(0, MAX_RESULTS).join("\n")
-    : "No Forever results. Try a shorter name, or web search."
+    : "No Forever results. Try a shorter or different name."
 }
 
-export async function search(query: string): Promise<string> {
+export async function searchResults(query: string): Promise<SearchResult[]> {
   const { results = [] } = await get<{ results?: SearchResult[] }>(
     `${SITE}/search/suggestions-template?q=${encodeURIComponent(query)}`,
   )
-  return formatResults(results)
+  return results
+}
+
+export async function search(query: string): Promise<string> {
+  return formatResults(await searchResults(query))
+}
+
+export const tooltip = (type: WowheadType, id: number) =>
+  get<Tooltip>(`${TOOLTIP}/${type}/${id}`)
+
+// A zone's name from its ID, or undefined when Wowhead doesn't answer.
+export async function zoneName(id: number): Promise<string | undefined> {
+  try {
+    return (await tooltip("zone", id)).name
+  } catch {
+    return undefined
+  }
 }
 
 export function formatTooltip(
@@ -141,18 +177,11 @@ export function formatTooltip(
 }
 
 export async function lookup(type: WowheadType, id: number): Promise<string> {
-  const tip = await get<Tooltip>(`${TOOLTIP}/${type}/${id}`)
+  const tip = await tooltip(type, id)
   if (!tip.name) {
     return `No Forever ${type} with ID ${id}.`
   }
   // Coordinates come with a zone ID; the agent needs its name for [[setway:...]].
-  let zone: string | undefined
-  if (tip.map?.zone) {
-    try {
-      zone = (await get<Tooltip>(`${TOOLTIP}/zone/${tip.map.zone}`)).name
-    } catch {
-      // The coordinates still help with the zone's ID in place of its name.
-    }
-  }
+  const zone = tip.map?.zone ? await zoneName(tip.map.zone) : undefined
   return formatTooltip(type, id, tip, zone)
 }

@@ -130,6 +130,7 @@ _G.GetQuestLogTitle = function() return "The Fargodeep Mine", 7, nil, false, nil
 _G.GetQuestLink = function() return "|cffffff00|Hquest:62:7|h[The Fargodeep Mine]|h|r" end
 _G.GetMoney = function() return 123456 end
 _G.GetZoneText = function() return "Teldrassil" end
+_G.time = os.time
 _G.GetSubZoneText = function() return "Dolanaar" end
 _G.GetItemInfo = function(x) if x == 2589 or tostring(x):find("2589") or x == "Linen Cloth" then return "Linen Cloth", "|cffffffff|Hitem:2589::::::::|h[Linen Cloth]|h|r", 1, 5, 0, "Trade Goods", "Cloth", 20, "", 132889 end end
 _G.GetInventoryItemLink = function() return nil end
@@ -873,6 +874,37 @@ local again2 = ask("and?")
 assert(again:find("character: ") and again:find("quests: ") and (again .. "\n" .. again2):find("\ndone: "), "new epoch resends everything")
 local f = io.open(os.getenv("WAI_CTX_DUMP") or "/dev/null", "w"); if f then f:write(table.concat(ctxs, "\0")); f:close() end
 print("context ok")
+
+-- Game data: the client's own talents, spells, trainers and vendors, only when asked about.
+_G.GetNumTalentTabs = function() return 1 end
+_G.GetTalentTabInfo = function() return "Beast Mastery", "icon", 3 end
+_G.GetNumTalents = function() return 3 end
+local talentRows = { { "Focused Fire", nil, 2, 1, 0, 2 }, { "Deadly Aspects", nil, 1, 1, 3, 5 }, { "Endurance Training", nil, 1, 2, 0, 5 } }
+_G.GetTalentInfo = function(_, i) local r = talentRows[i]; return r[1], r[2], r[3], r[4], r[5], r[6] end
+_G.GetNumSpellTabs = function() return 1 end
+_G.GetSpellTabInfo = function() return "Beast Mastery", nil, 0, 3 end
+local book = { { "Aspect of the Hawk", "Rank 1" }, { "Aspect of the Hawk", "Rank 2" }, { "Call Pet", "" } }
+_G.GetSpellBookItemName = function(i) return unpack(book[i]) end
+local services = { { "Beast Mastery", nil, "header" }, { "Aspect of the Cheetah", "Rank 1", "unavailable" }, { "Arcane Shot", "Rank 1", "used" } }
+_G.GetNumTrainerServices = function() return #services end
+_G.GetTrainerServiceInfo = function(i) local r = services[i]; return r[1], r[2], r[3] end
+_G.GetTrainerServiceLevelReq = function() return 20 end
+_G.GetTrainerServiceCost = function() return 600 end
+local goods = { { "Rough Arrow", nil, 10 }, { "Light Shot", nil, 10 }, { "Refreshing Spring Water", nil, 25 } }
+_G.GetMerchantNumItems = function() return #goods end
+_G.GetMerchantItemInfo = function(i) local r = goods[i]; return r[1], r[2], r[3] end
+fire("TRAINER_SHOW")
+fire("MERCHANT_SHOW")
+local spellCtx = ns.context.collect(nil, nil, "when do i get aspect of the cheetah")
+assert(spellCtx:find("trainers: \n%- Gnarlpine Ambusher %(Teldrassil 50.0,50.0%): Aspect of the Cheetah %(Rank 1%): level 20, 6s"), "trainer list: " .. spellCtx)
+assert(not spellCtx:find("Arcane Shot"), "known spells aren't listed as trainable")
+assert(spellCtx:find("spells known: \nBeast Mastery: Aspect of the Hawk %(Rank 2%), Call Pet"), "spellbook at highest rank")
+assert(not spellCtx:find("talent tree") and not spellCtx:find("vendors:"), "only what the message is about")
+local talentCtx = ns.context.collect(nil, nil, "what talents should i take next")
+assert(talentCtx:find("talent tree: \nBeast Mastery %(3 points%): row 1: Deadly Aspects 3/5, Endurance Training 0/5; row 2: Focused Fire 0/2"), "talent tree: " .. talentCtx)
+local shopCtx = ns.context.collect(nil, nil, "where can i buy arrows")
+assert(shopCtx:find("Rough Arrow 10c") and not shopCtx:find("Light Shot"), "vendors matched by item: " .. shopCtx)
+print("game data ok")
 
 -- Settings dock to the chat window: beside it (right, or left near the screen edge), opening it if
 -- needed, following it when it moves and closing with it.

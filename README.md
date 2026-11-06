@@ -184,6 +184,7 @@ flowchart LR
 - **Fallback:** `WaiDB.outbox` flushes on reload and `Data.lua` keeps history. Sequence numbers make resends harmless.
 - **The agent:** every prompt carries [`apps/cli/SKILL.md`](apps/cli/SKILL.md), which teaches the agent the game, the reply markup (`[[item:…]]`, `[[setway:…]]`, `[[remember:…]]`…) and how to build UI.
 - **Wowhead:** the bridge also gives each run its own `wai mcp` server with `search` and `lookup` tools for Wowhead's Forever database (names to IDs, tooltips, and NPC and object coordinates for the waypoint arrow) and `curseforge`, which checks a CurseForge project for a Forever build. Full pages go through the agent's web fetch.
+- **Accuracy:** agents can only read wowhead.com and curseforge.com (Claude's permission rules, Codex's search domains). The game's own data (talent trees, spellbook, and every trainer and vendor you open) goes with messages about them and beats any website. After each reply the bridge checks the NPCs, items, spells, quests and NPC waypoints it names against Wowhead's Forever database and flags mismatches under the reply.
 - **Addons:** `[[addon:ProjectID:Name]]` renders an Install link. Clicking it asks the bridge, which downloads the project's newest Forever build from CurseForge and unpacks it into `Interface/AddOns`. CurseForge is the only source, and wai's own folders are never replaced.
 
 > [!NOTE]

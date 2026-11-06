@@ -41,6 +41,10 @@ it works and docs/DESIGN.md for the visual language.
   budgeted per field.
 - Telemetry is opt-in and anonymous. Never add a field to reports without updating
   docs/TELEMETRY.md and the collector's schema, and never send chat text or names.
+- Agents may only read wowhead.com and curseforge.com (`SOURCES` in `agent.ts`): Claude through
+  `--allowedTools WebFetch(domain:...)` with WebSearch disallowed, Codex through
+  `tools.web_search.allowed_domains`. Facts come from the game first (`context.lua`: talent tree,
+  spellbook, trainers, vendors), then Wowhead; `verify.ts` checks every finished reply.
 - Addons install from CurseForge only, and only after the player clicks an Install link
   (`curseforge.ts`); never from other sites, and never over wai's own folders.
 - Never write anything that automates gameplay. wai reads state, shows information and builds UI.

@@ -7,6 +7,7 @@ import { basename } from "node:path"
 import {
   MCP_NAME,
   mcpServer,
+  SOURCES,
   proxy,
   requirePath,
   skill,
@@ -144,6 +145,8 @@ export function codexArgs(
     'sandbox_mode="workspace-write"',
     "-c",
     'web_search="live"',
+    "-c",
+    `tools.web_search.allowed_domains=${JSON.stringify(SOURCES)}`,
     // MCP servers run outside the sandbox, so this is how Codex reaches Wowhead.
     "-c",
     `mcp_servers.${MCP_NAME}.command=${JSON.stringify(server.command)}`,

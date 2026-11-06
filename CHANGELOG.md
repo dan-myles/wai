@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.4-nightly.2 (2026-11-06)
+
+wai stops answering from Classic memory.
+
+- **The game is the first source.** Ask about talents and wai gets your real Forever talent trees.
+  Ask about spells or training and it gets your spellbook plus every trainer you've opened (what
+  each still teaches, at what level and cost). Ask where to buy something and it gets every vendor
+  you've opened and their goods. wai learns a trainer's or vendor's list the first time you open
+  its window.
+- **Only Wowhead and CurseForge.** Claude can no longer web search, and can only fetch
+  wowhead.com and curseforge.com pages. Codex's web search only returns those two sites. Classic,
+  retail and guide sites are out.
+- **Every reply is checked.** When a reply finishes, the bridge looks up each NPC, item, spell and
+  quest it links on Wowhead Forever, plus waypoints placed on an NPC. Wrong IDs, names Forever
+  doesn't have, and pins far from where Wowhead puts that NPC show up as a note under the reply
+  ("Not confirmed on Wowhead Forever: ..."), and the agent is told to correct them next time.
+- New rules for the agent: no fact from memory, no guessed waypoints, and "I couldn't verify
+  that" instead of filling gaps.
+
 ## 0.9.4-nightly.1 (2026-11-06)
 
 - **wai installs addons from CurseForge.** Ask for one ("install Details", "get me a quest

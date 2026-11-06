@@ -6,6 +6,7 @@ import { basename } from "node:path"
 import {
   MCP_NAME,
   mcpServer,
+  SOURCES,
   proxy,
   requirePath,
   skill,
@@ -128,11 +129,13 @@ export async function runClaude(
     "--mcp-config",
     JSON.stringify({ mcpServers: { [MCP_NAME]: mcpServer() } }),
     "--allowedTools",
-    "WebSearch",
-    "WebFetch",
+    ...SOURCES.map((site) => `WebFetch(domain:www.${site})`),
     `mcp__${MCP_NAME}__search`,
     `mcp__${MCP_NAME}__lookup`,
     `mcp__${MCP_NAME}__curseforge`,
+    // Denied outright, so a player's own settings can't allow it back in.
+    "--disallowedTools",
+    "WebSearch",
   ]
   if (sessionId) {
     args.push("--resume", sessionId)

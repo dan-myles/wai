@@ -37,6 +37,7 @@ import { relaunchSelf } from "./service"
 import { IncompleteError, decode, parseTga } from "./shot"
 import { record, setClient, setConsent } from "./telemetry"
 import { availableUpdate, currentTrack, isTrack, update } from "./update"
+import { check } from "./verify"
 import { CHUNK_FRAMES, chunkLua, fetchVideo } from "./video"
 
 interface Message {
@@ -56,6 +57,8 @@ interface Chat {
   doneShown?: number
   messages: Message[]
   activity?: string
+  // What the Wowhead check found in the last reply, handed to the agent with the next message.
+  unverified?: string[]
 }
 interface Module {
   version: number
@@ -443,7 +446,11 @@ function prompt(item: Item, c: Chat) {
     )
   const block = gameBlock(memory, current, c.sessionId ? (c.doneShown ?? 0) : 0)
   c.doneShown = memory.done.length
-  return `[game]\n${block}\n[/game]\n\n${item.text}`
+  const flagged = c.unverified?.length
+    ? `[wai check] Wowhead's Forever database disagrees with your last reply: ${c.unverified.join("; ")}. Correct it if it still matters.\n\n`
+    : ""
+  c.unverified = undefined
+  return `${flagged}[game]\n${block}\n[/game]\n\n${item.text}`
 }
 
 const RUNNERS: Record<Agent, typeof runClaude> = {
@@ -553,6 +560,18 @@ async function drain() {
       c.sessionId = res.sessionId
       reply.text = res.text
       console.log(`wai: answered seq ${item.seq}`)
+      c.activity = "Checking Wowhead"
+      publishSoon()
+      const problems = await check(res.text)
+      if (problems.length) {
+        c.unverified = problems
+        say(
+          key,
+          "status",
+          `Not confirmed on Wowhead Forever: ${problems.join("; ")}.`,
+          { done: true },
+        )
+      }
       // Fetch any video the reply asked for before finishing, so the addon is still polling.
       const video = res.text.match(/\[\[(video|clip):([^\]]+)\]\]/)
       if (video) {
@@ -586,7 +605,6 @@ const KINDS: Record<number, string> = {
   5: "update",
 }
 
-// In-game /update: progress shows up as status lines in the chat that asked.
 async function installAddon(who: string, tab: string, project: number) {
   const key = chatKey(who, tab)
   const c = chat(key)
@@ -612,6 +630,7 @@ async function installAddon(who: string, tab: string, project: number) {
   c.activity = undefined
 }
 
+// In-game /update: progress shows up as status lines in the chat that asked.
 async function runUpdate(who: string, tab: string) {
   const key = chatKey(who, tab)
   const c = chat(key)

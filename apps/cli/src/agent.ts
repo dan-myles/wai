@@ -60,6 +60,10 @@ export const proxy = (): Proxy | undefined => readConfig().proxy
 export const proxyRoot = (url: string) =>
   url.trim().replace(/\/+$/, "").replace(/\/v1$/, "")
 
+// The only sites agents may read: Classic and retail guides answer for other versions of the game,
+// so they're locked out, not just discouraged (Claude's permission rules, Codex's search domains).
+export const SOURCES = ["wowhead.com", "curseforge.com"] as const
+
 // wai's own MCP server (mcp.ts), attached to every run under this name.
 export const MCP_NAME = "wai"
 export function mcpServer(): { command: string; args: string[] } {

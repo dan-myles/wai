@@ -299,6 +299,194 @@ local function memory()
     return m
 end
 
+-- What the game itself knows --------------------------------------------------------------------
+-- The client is the one source that's always right about Forever: its talent trees, the spells
+-- the player knows, and every trainer and vendor they've opened go to the agent when the message
+-- is about them. Websites (Wowhead included) still carry Classic leftovers.
+
+local function money(copper)
+    if not copper or copper <= 0 then return "free" end
+    local parts = {}
+    local g, s, c = floor(copper / 10000), floor(copper / 100) % 100, copper % 100
+    if g > 0 then parts[#parts + 1] = g .. "g" end
+    if s > 0 then parts[#parts + 1] = s .. "s" end
+    if c > 0 then parts[#parts + 1] = c .. "c" end
+    return table.concat(parts, " ")
+end
+
+-- Where the player stands, which is within a few yards of the NPC whose window they opened.
+local function here()
+    local zone = GetZoneText()
+    local map = C_Map and C_Map.GetBestMapForUnit("player")
+    local pos = map and C_Map.GetPlayerMapPosition(map, "player")
+    if not pos then return zone end
+    local x, y = pos:GetXY()
+    return ("%s %.1f,%.1f"):format(zone, x * 100, y * 100)
+end
+
+local function talentTree()
+    local out = {}
+    for t = 1, GetNumTalentTabs() do
+        local a1, a2, a3, _, a5 = GetTalentTabInfo(t)
+        local tree = type(a1) == "string" and a1 or a2
+        local points = type(a3) == "number" and a3 or a5
+        local list = {}
+        for i = 1, GetNumTalents(t) do
+            local name, _, tier, column, rank, maxRank = GetTalentInfo(t, i)
+            if name then
+                list[#list + 1] = { tier = tier or 0, column = column or 0, text = ("%s %d/%d"):format(name, rank or 0, maxRank or 0) }
+            end
+        end
+        table.sort(list, function(a, b)
+            if a.tier ~= b.tier then return a.tier < b.tier end
+            return a.column < b.column
+        end)
+        local rows, tier = {}, nil
+        for _, e in ipairs(list) do
+            if e.tier ~= tier then
+                rows[#rows + 1] = "row " .. e.tier .. ": " .. e.text
+                tier = e.tier
+            else
+                rows[#rows] = rows[#rows] .. ", " .. e.text
+            end
+        end
+        out[#out + 1] = ("%s (%d points): %s"):format(tree, points or 0, table.concat(rows, "; "))
+    end
+    local free = UnitCharacterPoints and UnitCharacterPoints("player")
+    if free and free > 0 then out[#out + 1] = free .. " unspent points" end
+    return "\n" .. table.concat(out, "\n")
+end
+
+-- Known spells per spellbook tab, each at its highest rank (later entries are higher ranks).
+local function spellbook()
+    local nameOf = GetSpellBookItemName or GetSpellName
+    local out = {}
+    for tab = 1, GetNumSpellTabs() do
+        local tabName, _, offset, count = GetSpellTabInfo(tab)
+        local ranks, order = {}, {}
+        for i = offset + 1, offset + count do
+            local spell, rank = nameOf(i, BOOKTYPE_SPELL or "spell")
+            if spell then
+                if ranks[spell] == nil then order[#order + 1] = spell end
+                ranks[spell] = (rank and rank ~= "") and rank or ranks[spell] or false
+            end
+        end
+        local list = {}
+        for _, spell in ipairs(order) do
+            list[#list + 1] = ranks[spell] and ("%s (%s)"):format(spell, ranks[spell]) or spell
+        end
+        out[#out + 1] = ("%s: %s"):format(tabName, table.concat(list, ", "))
+    end
+    return "\n" .. table.concat(out, "\n")
+end
+
+-- A trainer's list as the player sees it: what they can learn now and later, with the level and
+-- cost the game shows. Spells they already know aren't listed.
+local function scanTrainer()
+    local npc = UnitName("npc")
+    if not usable(npc) then return end
+    local list = {}
+    for i = 1, GetNumTrainerServices() do
+        local name, rank, kind = GetTrainerServiceInfo(i)
+        if name and kind ~= "header" and kind ~= "used" then
+            local level = GetTrainerServiceLevelReq and GetTrainerServiceLevelReq(i) or 0
+            local cost = GetTrainerServiceCost and GetTrainerServiceCost(i)
+            local ranked = (rank and rank ~= "") and (" (" .. rank .. ")") or ""
+            list[#list + 1] = ("%s%s: level %d, %s"):format(name, ranked, level, money(cost))
+        end
+    end
+    if #list == 0 then return end
+    WaiCharDB.trainers = WaiCharDB.trainers or {}
+    WaiCharDB.trainers[npc] = { at = here(), zone = GetZoneText(), services = list, seen = time() }
+end
+
+local function scanVendor()
+    local npc = UnitName("npc")
+    if not usable(npc) then return end
+    local items = {}
+    for i = 1, GetMerchantNumItems() do
+        local name, _, price = GetMerchantItemInfo(i)
+        if name then items[#items + 1] = ("%s %s"):format(name, money(price)) end
+    end
+    if #items == 0 then return end
+    WaiDB.vendors = WaiDB.vendors or {}
+    WaiDB.vendors[npc] = { at = here(), zone = GetZoneText(), items = items, seen = time() }
+end
+context.scanTrainer, context.scanVendor = scanTrainer, scanVendor
+
+local seen = CreateFrame("Frame")
+for _, event in ipairs({ "TRAINER_SHOW", "TRAINER_UPDATE", "MERCHANT_SHOW", "MERCHANT_UPDATE" }) do
+    seen:RegisterEvent(event)
+end
+seen:SetScript("OnEvent", ns.core.guard(function(_, event)
+    if event:find("^TRAINER") then scanTrainer() else scanVendor() end
+end))
+
+-- Places the player has seen, the current zone first, then the most recent.
+local function places(book, pick)
+    local zone, out = GetZoneText(), {}
+    for npc, entry in pairs(book or {}) do
+        local list, score = pick(entry)
+        if list then
+            out[#out + 1] = { score = score + (entry.zone == zone and 1 or 0), seen = entry.seen or 0,
+                text = ("- %s (%s): %s"):format(npc, entry.at or entry.zone or "?", table.concat(list, "; ")) }
+        end
+    end
+    table.sort(out, function(a, b)
+        if a.score ~= b.score then return a.score > b.score end
+        return a.seen > b.seen
+    end)
+    local lines = {}
+    for i, e in ipairs(out) do lines[i] = e.text end
+    return lines
+end
+
+local function trainers()
+    local lines = places(WaiCharDB.trainers, function(t) return t.services, 0 end)
+    if #lines == 0 then return "none seen yet (wai learns a trainer's list when the player opens it)" end
+    return "\n" .. table.concat(lines, "\n")
+end
+
+local STOP = { what = true, where = true, when = true, which = true, there = true, near = true, nearby = true,
+    closest = true, close = true, please = true, need = true, some = true, with = true, from = true,
+    that = true, this = true, have = true, find = true, sell = true, sells = true, vendor = true, shop = true }
+
+-- Vendors whose goods match the message's words first, then the ones in this zone.
+local function vendors(message)
+    local words = {}
+    for word in (message or ""):lower():gmatch("%a%a%a%a+") do
+        if not STOP[word] then words[#words + 1] = (word:gsub("e?s$", "")) end
+    end
+    local zone = GetZoneText()
+    local lines = places(WaiDB.vendors, function(v)
+        local hits = {}
+        for _, item in ipairs(v.items) do
+            local lower = item:lower()
+            for _, word in ipairs(words) do
+                if lower:find(word, 1, true) then
+                    hits[#hits + 1] = item
+                    break
+                end
+            end
+        end
+        if #hits > 0 then return hits, 2 end
+        if v.zone == zone then return v.items, 0 end
+    end)
+    if #lines == 0 then return "none seen yet that match (wai learns a vendor's goods when the player opens its window)" end
+    return "\n" .. table.concat(lines, "\n")
+end
+
+local function mentions(message, words)
+    message = (message or ""):lower()
+    for _, word in ipairs(words) do
+        if message:find("%f[%a]" .. word) then return true end
+    end
+end
+local TALENTY = { "talent", "spec", "build", "points" }
+local SPELLY = { "spell", "abilit", "skill", "learn", "train", "rank", "aspect", "when do i get", "what level" }
+local SHOPPY = { "buy", "vendor", "sell", "merchant", "shop", "ammo", "arrow", "bullet", "food", "water",
+    "drink", "reagent", "suppl", "restock", "where can i get" }
+
 -- Words that mean the question is about chat, which then gets more room.
 local CHATTY = { "chat", "said", "say", "says", "whisper", "general", "guild", "party", "trade", "lfg", "yell" }
 local function aboutChat(message)
@@ -349,6 +537,19 @@ function context.collect(subject, tab, message)
         if not (message or ""):lower():find("macro") then return nil end
         return "\n" .. ns.macros.describe(message, 1000)
     end, 1100)
+    add("talent tree", function()
+        if mentions(message, TALENTY) then return talentTree() end
+    end, 1400)
+    local spelly = mentions(message, SPELLY)
+    add("spells known", function()
+        if spelly then return spellbook() end
+    end, 700)
+    add("trainers", function()
+        if spelly then return trainers() end
+    end, 900)
+    add("vendors", function()
+        if mentions(message, SHOPPY) then return vendors(message) end
+    end, 800)
     add("chat title", function()
         if not tab then return nil end
         return ("%q %s"):format(tab.name, tab.manual and "(named by the player; keep it)" or "(you can retitle it)")

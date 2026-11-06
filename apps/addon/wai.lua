@@ -363,6 +363,7 @@ local function flags(item)
     if version then out = out .. ";c=" .. version .. "." .. tostring(build) end
     if item.agent then out = out .. ";a=" .. item.agent end
     if item.track then out = out .. ";u=" .. item.track end
+    if item.install then out = out .. ";i=" .. item.install end
     return out
 end
 
@@ -512,6 +513,12 @@ function core.setTrack(name)
     if name == core.track() then return end
     track = name
     askBridge({ track = name })
+end
+
+-- The bridge downloads it from CurseForge and posts the result as a note.
+function core.installAddon(id, name)
+    core.note(("|cff9298a3Installing %s from CurseForge…|r"):format(name))
+    askBridge({ install = id })
 end
 
 -- Public API ------------------------------------------------------------------------------------

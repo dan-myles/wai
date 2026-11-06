@@ -64,8 +64,8 @@
     </td>
     <td valign="top">
       <h4>🧠 Memory and actions</h4>
-      Each character has its own memory. wai saves notes, sets the arrow and writes your
-      macros on its own, with no commands to learn.
+      Each character has its own memory. wai saves notes, sets the arrow, writes your
+      macros and installs addons from CurseForge (one click to confirm), with no commands to learn.
     </td>
   </tr>
   <tr>
@@ -149,7 +149,7 @@ gh api repos/dan-myles/wai/contents/install.sh -H "Accept: application/vnd.githu
 Everything else, just ask. Some things to try:
 
 > *"Where do I turn in this quest?"* · *"Is this an upgrade for a hunter?"* · *"Why did I die?"* ·
-> *"Make me a mouseover heal macro"* · *"Make me a frame that tracks my soul shards"* · *"Show me a guide for the Deadmines"* · *"Turn on TikTok mode"*
+> *"Make me a mouseover heal macro"* · *"Install Details"* · *"Make me a frame that tracks my soul shards"* · *"Show me a guide for the Deadmines"* · *"Turn on TikTok mode"*
 
 **Copying:** click any message to select its text, then press Ctrl+C. Esc puts it back.
 
@@ -183,7 +183,8 @@ flowchart LR
 - **Live UI and video** use the same trick with their own pools: 40 module slots for UI the agent writes, and 200 slots for 80×45 pixel video frames.
 - **Fallback:** `WaiDB.outbox` flushes on reload and `Data.lua` keeps history. Sequence numbers make resends harmless.
 - **The agent:** every prompt carries [`apps/cli/SKILL.md`](apps/cli/SKILL.md), which teaches the agent the game, the reply markup (`[[item:…]]`, `[[setway:…]]`, `[[remember:…]]`…) and how to build UI.
-- **Wowhead:** the bridge also gives each run its own `wai mcp` server with `search` and `lookup` tools for Wowhead's Forever database: names to IDs, tooltips, and NPC and object coordinates for the waypoint arrow. Full pages (quest givers, drop tables) go through the agent's web fetch.
+- **Wowhead:** the bridge also gives each run its own `wai mcp` server with `search` and `lookup` tools for Wowhead's Forever database (names to IDs, tooltips, and NPC and object coordinates for the waypoint arrow) and `curseforge`, which checks a CurseForge project for a Forever build. Full pages go through the agent's web fetch.
+- **Addons:** `[[addon:ProjectID:Name]]` renders an Install link. Clicking it asks the bridge, which downloads the project's newest Forever build from CurseForge and unpacks it into `Interface/AddOns`. CurseForge is the only source, and wai's own folders are never replaced.
 
 > [!NOTE]
 > wai reads game state, shows information and builds UI. It never automates gameplay.

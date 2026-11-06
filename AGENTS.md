@@ -32,7 +32,7 @@ it works and docs/DESIGN.md for the visual language.
 - Agents live in `apps/cli/src/agent.ts` (shared), `claude.ts` and `codex.ts`; each chat's session
   belongs to one agent. An optional gateway (`wai proxy`, e.g. CLIProxyAPI) is passed to each CLI per
   run through flags and env, never by editing the player's own CLI configs. The agent's capabilities live in
-  `apps/cli/SKILL.md`, injected into every prompt. `wai mcp` (`mcp.ts`, `wowhead.ts`) is attached to
+  `apps/cli/SKILL.md`, injected into every prompt. `wai mcp` (`mcp.ts`, `wowhead.ts`, `curseforge.ts`) is attached to
   every run the same way (Claude's `--mcp-config`, Codex's `-c mcp_servers.*`); its tools must stay
   read-only and marked so, or Codex refuses them. Reply markup
   (`[[item:..]]`, `[[setway:..]]`, `[[remember:..]]`...) is rendered and acted on by `links.lua` and `wai.lua`.
@@ -41,6 +41,8 @@ it works and docs/DESIGN.md for the visual language.
   budgeted per field.
 - Telemetry is opt-in and anonymous. Never add a field to reports without updating
   docs/TELEMETRY.md and the collector's schema, and never send chat text or names.
+- Addons install from CurseForge only, and only after the player clicks an Install link
+  (`curseforge.ts`); never from other sites, and never over wai's own folders.
 - Never write anything that automates gameplay. wai reads state, shows information and builds UI.
 
 ## Code Standards

@@ -5,6 +5,8 @@ Ideas we're not working on yet. Each needs a feasibility check first.
 Nothing is open right now.
 
 ## Done
+- **Addon installs (v0.9.4-nightly.1):** the agent finds a CurseForge project, checks it has a Forever build with the `curseforge` tool, and offers an Install link; the bridge downloads and unpacks it into AddOns on click.
+- **Wowhead tools (v0.9.3-nightly.11):** `wai mcp` gives both agents `search` and `lookup` against Wowhead's Forever JSON endpoints.
 - **Settings tabs (v0.9.3-nightly.9):** General / Fun / About; the Fun menu and `/fun` folded into the Fun tab.
 - **Wowhead Forever as primary source (v0.9.3-nightly.4):** the skill sends agents to `wowhead.com/forever/<type>=ID` pages before answering game specifics.
 - **Context memory (v0.9.3-nightly.2):** the bridge remembers character, notes, talents and the quest log (diffed by quest ID) plus completed quest history; per-field budgets so chat can't crowd them out.

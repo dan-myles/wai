@@ -13,6 +13,7 @@ import { NAMES, agentPath, currentAgent, INSTALL_HINTS, isAgent } from "./agent"
 import { runClaude } from "./claude"
 import { runCodex } from "./codex"
 import { gameBlock, remember } from "./context"
+import { install } from "./curseforge"
 import {
   ACCOUNTS_DIR,
   DATA_FILE,
@@ -586,6 +587,31 @@ const KINDS: Record<number, string> = {
 }
 
 // In-game /update: progress shows up as status lines in the chat that asked.
+async function installAddon(who: string, tab: string, project: number) {
+  const key = chatKey(who, tab)
+  const c = chat(key)
+  c.activity = "Installing from CurseForge"
+  await publish()
+  try {
+    const { file, folders, updated } = await install(project)
+    say(
+      key,
+      "status",
+      `${updated ? "Updated" : "Installed"} ${folders.join(", ")} (${file.displayName}) from CurseForge. Restart WoW to load it.`,
+      { done: true },
+    )
+  } catch (error) {
+    say(
+      key,
+      "status",
+      `Couldn't install that addon: ${error instanceof Error ? error.message : String(error)}`,
+      { done: true },
+    )
+    reportError("install_error", error, who)
+  }
+  c.activity = undefined
+}
+
 async function runUpdate(who: string, tab: string) {
   const key = chatKey(who, tab)
   const c = chat(key)
@@ -673,6 +699,11 @@ async function readShot(path: string) {
         }
         if (KINDS[shot.kind] === "ping" || KINDS[shot.kind] === "video") {
           schedule = { k0: shot.slot, start: Date.now(), who }
+          // An Install link the player clicked: "i=<CurseForge project ID>".
+          const project = Number(/(?:^|;)i=(\d+)/.exec(flags)?.[1])
+          if (project) {
+            await installAddon(who, tab, project)
+          }
           // A direct video request from the Fun menu: "clip:query" or "video:query", no Claude involved.
           const request =
             KINDS[shot.kind] === "video" && text?.match(/^(video|clip):(.+)$/)

@@ -58,6 +58,9 @@ export function describeItem(item: CodexItem): string {
       if (item.server !== MCP_NAME) {
         return "Using a tool"
       }
+      if (item.tool === "curseforge") {
+        return "Checking CurseForge"
+      }
       const query = item.tool === "search" ? item.arguments?.query : undefined
       return query ? `Searching Wowhead for "${query}"` : "Reading Wowhead"
     }

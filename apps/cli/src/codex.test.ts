@@ -78,13 +78,13 @@ test("passes the skill as TOML developer instructions and resumes by id", () => 
   expect(resumed).toContain('sandbox_mode="workspace-write"')
 })
 
-test("attaches wai's Wowhead server without touching the player's config", () => {
+test("attaches wai's MCP server without touching the player's config", () => {
   const args = codexArgs("codex", "hi", undefined, "skill", undefined, {
     command: "C:\\wai\\wai.exe",
     args: ["mcp"],
   })
-  expect(args).toContain('mcp_servers.wowhead.command="C:\\\\wai\\\\wai.exe"')
-  expect(args).toContain('mcp_servers.wowhead.args=["mcp"]')
+  expect(args).toContain('mcp_servers.wai.command="C:\\\\wai\\\\wai.exe"')
+  expect(args).toContain('mcp_servers.wai.args=["mcp"]')
 })
 
 test("sends Codex through a gateway without touching config.toml", () => {

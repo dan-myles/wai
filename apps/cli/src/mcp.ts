@@ -3,6 +3,7 @@
 // configs. Newline-delimited JSON-RPC, which is all stdio MCP needs.
 import type { WowheadType } from "./wowhead"
 
+import { describe } from "./curseforge"
 import { VERSION } from "./version"
 import { lookup, search, TYPES } from "./wowhead"
 
@@ -47,6 +48,17 @@ const TOOLS = [
       required: ["type", "id"],
     },
   },
+  {
+    name: "curseforge",
+    annotations,
+    description:
+      "Check a CurseForge addon project (by its Project ID, shown on the project's curseforge.com page) for a build that runs on WoW: Forever, before offering to install it.",
+    inputSchema: {
+      type: "object",
+      properties: { project: { type: "integer" } },
+      required: ["project"],
+    },
+  },
 ]
 
 async function call(
@@ -64,6 +76,9 @@ async function call(
   ) {
     return await lookup(type as WowheadType, id)
   }
+  if (name === "curseforge" && typeof args.project === "number") {
+    return await describe(args.project)
+  }
   throw new Error(`bad call to ${name}: ${JSON.stringify(args)}`)
 }
 
@@ -73,7 +88,7 @@ async function answer(req: Request): Promise<unknown> {
       return {
         protocolVersion: req.params?.protocolVersion ?? "2025-06-18",
         capabilities: { tools: {} },
-        serverInfo: { name: "wowhead", version: VERSION },
+        serverInfo: { name: "wai", version: VERSION },
       }
     }
     case "tools/list": {

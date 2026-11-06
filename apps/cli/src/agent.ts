@@ -61,7 +61,7 @@ export const proxyRoot = (url: string) =>
   url.trim().replace(/\/+$/, "").replace(/\/v1$/, "")
 
 // wai's own MCP server (mcp.ts), attached to every run under this name.
-export const MCP_NAME = "wowhead"
+export const MCP_NAME = "wai"
 export function mcpServer(): { command: string; args: string[] } {
   const [command = "wai", ...args] = selfCommand("mcp")
   return { command, args }

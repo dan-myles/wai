@@ -104,6 +104,14 @@ function RENDER.stream()
 end
 RENDER.title = RENDER.stream
 
+-- [[addon:ProjectID:Name]]: an Install link. Nothing is downloaded until the player clicks it.
+function RENDER.addon(body)
+    local id, name = split(body)
+    if not id then return nil end
+    name = name ~= "" and name or ("CurseForge project " .. id)
+    return ("|cff3fa0ff|Hwai:addon:%d:%s|h[Install %s]|h|r"):format(id, name, name)
+end
+
 function RENDER.forget(body)
     return "|cff8c6f3aForgot: " .. body .. "|r"
 end
@@ -186,8 +194,17 @@ local function parseWay(link)
     if x then return zone, tonumber(x), tonumber(y), label end
 end
 
+local function parseAddon(link)
+    local id, name = link:match("^wai:addon:(%d+):(.*)$")
+    return tonumber(id), name
+end
+
 local function onEnter(self, link)
     self.overLink = true
+    local id, name = parseAddon(link)
+    if id then
+        return T.tooltip(self, name, "From CurseForge, project " .. id, "Click to install it. Restart WoW afterwards to load it.")
+    end
     local zone, x, y, label = parseWay(link)
     if zone then
         return T.tooltip(self, label, ("%s  %.1f, %.1f"):format(zone, x, y), "Click to set a waypoint arrow.")
@@ -197,6 +214,8 @@ local function onEnter(self, link)
 end
 
 local function onClick(self, link, text, button)
+    local id, name = parseAddon(link)
+    if id then return ns.core.installAddon(id, name) end
     local zone, x, y, label = parseWay(link)
     if zone then
         local ok, err = ns.way.setByZone(zone, x, y, label)

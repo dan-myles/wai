@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.4-nightly.1 (2026-11-06)
+
+- **wai installs addons from CurseForge.** Ask for one ("install Details", "get me a quest
+  helper") and wai finds it on CurseForge, checks it has a WoW: Forever build, and replies with an
+  Install link. Click it and the bridge downloads that build and unpacks it into your AddOns
+  folder, replacing an older copy. Restart WoW to load it.
+- CurseForge is the only source. Nothing downloads until you click, and wai's own folders are
+  never touched.
+
 ## 0.9.3 (2026-11-05)
 
 Everything from the 0.9.3 nightlies. `/reload` after updating; no client restart needed.

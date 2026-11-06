@@ -72,6 +72,9 @@ export function describe(name: string, input: ToolInput = {}): string {
     case `mcp__${MCP_NAME}__lookup`: {
       return "Reading Wowhead"
     }
+    case `mcp__${MCP_NAME}__curseforge`: {
+      return "Checking CurseForge"
+    }
     case "TodoWrite": {
       return "Planning"
     }
@@ -129,6 +132,7 @@ export async function runClaude(
     "WebFetch",
     `mcp__${MCP_NAME}__search`,
     `mcp__${MCP_NAME}__lookup`,
+    `mcp__${MCP_NAME}__curseforge`,
   ]
   if (sessionId) {
     args.push("--resume", sessionId)

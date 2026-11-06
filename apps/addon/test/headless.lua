@@ -697,6 +697,19 @@ ns.macros.save("Long", ("x"):rep(256))
 assert(#texts("at most 16 characters") == 1 and #texts("WoW allows 255") == 1 and #macroBook.char == 2, "limits")
 print("macros ok")
 
+-- Addons: [[addon:ID:Name]] is an Install link; clicking it asks the bridge, nothing else.
+local installLink = ns.links.render("Try [[addon:1706050:ForeverVoice]].")
+assert(installLink:find("|Hwai:addon:1706050:ForeverVoice|h%[Install ForeverVoice%]|h"), "install link rendered: " .. installLink)
+assert(ns.links.plain(installLink) == "Try [Install ForeverVoice].", "copies as plain text")
+local linkHost
+for _, f in ipairs(frames) do if f.scripts and f.scripts.OnHyperlinkClick then linkHost = f break end end
+fire("SCREENSHOT_SUCCEEDED")
+linkHost.scripts.OnHyperlinkClick(linkHost, "wai:addon:1706050:ForeverVoice", "[Install ForeverVoice]", "LeftButton")
+assert(#texts("Installing ForeverVoice from CurseForge") == 1, "install acknowledged")
+assert(fullPayload()[5]:find("i=1706050", 1, true), "install request sent: " .. tostring(fullPayload()[5]))
+fire("SCREENSHOT_SUCCEEDED")
+print("addon install ok")
+
 -- Tab menu: right-click opens Rename / Delete instead of closing; Delete needs a second click.
 ns.core.newTab()
 local before = #ns.core.tabs()

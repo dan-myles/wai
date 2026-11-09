@@ -23,7 +23,7 @@ local MAX_TABS = 8
 local CAPACITY = 3072
 local HEADER_BYTES = 3 -- kind, seq(2)
 local DIGEST_MESSAGES = 8 -- per tab, in the hello; the bridge's live window is 6
-local KINDS = { chat = 1, reset = 2, ping = 3, video = 4, update = 5, hello = 6 } -- bridge/src/index.ts
+local KINDS = { chat = 1, reset = 2, ping = 3, video = 4, update = 5, hello = 6, answer = 7 } -- bridge/src/index.ts
 local CHARS_PER_SEC = { normal = 90, fast = 260 } -- by the "typing" setting; "instant" skips typing
 
 local LoadAddOn = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
@@ -264,7 +264,7 @@ local function stopWatching(n)
     changed()
 end
 
-local ping, hello
+local ping, hello, answer
 
 -- Keeps the live view honest: retries silently once, then says what's wrong.
 local function checkHealth()
@@ -300,6 +300,7 @@ local function apply(msg)
     if type(msg) ~= "table" then return end
     lastBeatAt, contactAt = GetTime(), GetTime()
     if msg.hello then return hello() end -- the bridge restarted and wants to know what we have
+    if msg.ask then return answer(msg.askId, msg.ask) end
     if msg.update ~= nil then updateAvailable = msg.update and msg.update.version or nil end
     if msg.agent then agent = msg.agent end
     if msg.track then track = msg.track end
@@ -384,6 +385,13 @@ hello = function()
         end
     end
     ns.link.send(encode({ kind = "hello", text = table.concat(lines, "\n") }))
+end
+
+-- The agent's question about this client's data (query.lua), answered as text keyed by its id. A
+-- client started before query.lua existed can't see it until it restarts.
+answer = function(id, ask)
+    local text = ns.query and ns.query.run(ask) or "The game needs a restart to answer (wai was updated)."
+    ns.link.send(encode({ kind = "answer", text = tostring(id), ctx = text }))
 end
 
 -- Asks the bridge for a video directly (kind "video" or "clip"), without going through Claude.

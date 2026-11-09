@@ -897,7 +897,8 @@ _G.GetTrainerServiceLevelReq = function() return 20 end
 _G.GetTrainerServiceCost = function() return 600 end
 local goods = { { "Rough Arrow", nil, 10 }, { "Light Shot", nil, 10 }, { "Refreshing Spring Water", nil, 25 } }
 _G.GetMerchantNumItems = function() return #goods end
-_G.GetMerchantItemInfo = function(i) local r = goods[i]; return r[1], r[2], r[3] end
+-- The modern client's merchant API returns a table; the old global is gone.
+_G.C_MerchantFrame = { GetItemInfo = function(i) local r = goods[i]; return r and { name = r[1], price = r[3] } end }
 fire("TRAINER_SHOW")
 fire("MERCHANT_SHOW")
 local spellCtx = ns.context.collect(nil, nil, "when do i get aspect of the cheetah")
@@ -952,4 +953,50 @@ subjectInput:SetText("")
 -- /wai with a non-command sends; with a command runs it.
 SlashCmdList.WAI("hello there")
 assert(WaiDB.outbox[#WaiDB.outbox].text == "hello there")
+
+-- Game questions: the bridge asks over the link and the addon answers (kind 7) with its own data.
+local asked = 0
+local function askGame(question)
+  asked = asked + 1
+  linkHandlers.message({ ask = question, askId = asked })
+  local kind, _, parts = sentParts()
+  assert(kind == 7 and parts[1] == tostring(asked), "answered as kind 7 with the id")
+  return parts[2]
+end
+_G.UnitFactionGroup = function() return "Alliance" end
+_G.IsPlayerSpell = function(id) return id == 13165 end
+C_Spell.GetSpellName = function(id) return ({ [75] = "Auto Shot", [2973] = "Raptor Strike", [781] = "Disengage", [13165] = "Aspect of the Hawk" })[id] end
+local range = askGame({ query = "training", from = 10, to = 12 })
+assert(range:find("^HUNTER training, levels 10%-12 %(the character is level 12%)") and range:find("10: Aspect of the Hawk %[spell 13165%], 4s %(known%)") and range:find("12: spell 20736"), "a level range, known marked: " .. range)
+local named = askGame({ query = "training", name = "disengage" })
+assert(named:find("20: Disengage %[spell 781%], 21s") and not named:find("Aspect"), "found by name: " .. named)
+assert(askGame({ query = "training", class = "MAGE", from = 1, to = 4 }):find("^MAGE training"), "another class")
+assert(askGame({ query = "npc", name = "Marshal Dughan" }):find("isn't loaded"), "no Questie: says so")
+-- With Questie's Forever database (only points its projection leaves alone are given).
+_G.LibQuestieDB = {
+  flavor = { expansion = "Forever" },
+  EraToForever = function(_, x, y) if x > 90 then return x - 5, y end return x, y end,
+  Npc = {
+    Exists = function(id) return id == 240 or id == 5515 or id == 2455 end,
+    IdsByName = function(name) return name == "Marshal Dughan" and { 240 } or {} end,
+    Get = function(id, field)
+      local npcs = {
+        [240] = { name = "Marshal Dughan", spawns = { [12] = { { 42.1, 65.9 }, { 95, 10 } } } },
+        [5515] = { name = "Einris Brightspear", subName = "Hunter Trainer", friendlyToFaction = "A", spawns = { [12] = { { 51, 40 } } } },
+        [2455] = { name = "Olivia Burnside", subName = "Banker", friendlyToFaction = "H", spawns = { [12] = { { 60, 70 } } } },
+      }
+      return npcs[id] and npcs[id][field]
+    end,
+  },
+  Object = { Exists = function() return false end, Get = function() end },
+}
+local townsfolk = { townsfolk = { Banker = { 2455 } }, GetClassTrainers = function() return { HUNTER = { 5515 } } end }
+_G.QuestieLoader = { ImportModule = function(_, name) return ({ ZoneDB = { GetUiMapIdByAreaId = function() return 1429 end }, Townsfolk = townsfolk })[name] end }
+local dughan = askGame({ query = "npc", name = "Marshal Dughan" })
+assert(dughan:find("npc 240: Marshal Dughan\n  Elwynn Forest 42.1,65.9") and dughan:find("1 spawn points left out") and dughan:find("QuestieDB Forever"), "spawns on Forever's map: " .. dughan)
+assert(askGame({ query = "trainers" }):find("npc 5515: Einris Brightspear <Hunter Trainer>: Elwynn Forest 51.0,40.0"), "class trainers")
+local bankers = askGame({ query = "service", service = "banker" })
+assert(bankers:find("^Banker:") and bankers:find("None found"), "a Horde banker isn't offered to an Alliance player: " .. bankers)
+assert(askGame({ query = "service", service = "Barber" }):find("Questie knows: Banker"), "unknown service lists the roles")
+print("game questions ok")
 print("ALL OK")

@@ -2,9 +2,13 @@
 
 Ideas we're not working on yet. Each needs a feasibility check first.
 
-Nothing is open right now.
+- **TheWoWDB as a second catalog:** wisp-ai uses `thewowdb.com/api/v1/forever/{kind}/`, but on
+  2026-11-09 every route there answered 404 and the site's own database is retail-based (it has the
+  Stockade Hogger, 1033, not Elwynn's, 448). Revisit if a Forever API appears: a `thewowdb` tool
+  in `wai mcp` and a second opinion in `verify.ts` before flagging something Wowhead lacks.
 
 ## Done
+- **More Forever sources (v0.9.4-nightly.4):** a `game` tool answered by the client over the link (bundled WhatsTraining Forever training tables; QuestieDB spawns, quests, trainers and services when Questie is installed) and Everloot's Forever-only tools.
 - **Live link (v0.9.4-nightly.3):** screenshots and message slots replaced by bit lanes over helper addons' enabled states in AddOns.txt (`link.lua`/`link.ts`), with acks both ways, deflate and change-only messages (`sync.ts`).
 - **Forever-only facts (v0.9.4-nightly.2):** game data (talent tree, spellbook, trainer and vendor caches) on demand, sources locked to Wowhead and CurseForge, and a Wowhead check of every reply.
 - **Addon installs (v0.9.4-nightly.1):** the agent finds a CurseForge project, checks it has a Forever build with the `curseforge` tool, and offers an Install link; the bridge downloads and unpacks it into AddOns on click.

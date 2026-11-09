@@ -13,6 +13,7 @@ import {
   skill,
   streamLines,
 } from "./agent"
+import { activity } from "./mcp"
 
 interface CodexItem {
   type?: string
@@ -21,7 +22,7 @@ interface CodexItem {
   changes?: { path?: string }[]
   server?: string
   tool?: string
-  arguments?: { query?: string }
+  arguments?: Record<string, unknown>
 }
 // The parts of Codex's JSONL events the bridge reads.
 export interface CodexEvent {
@@ -59,11 +60,7 @@ export function describeItem(item: CodexItem): string {
       if (item.server !== MCP_NAME) {
         return "Using a tool"
       }
-      if (item.tool === "curseforge") {
-        return "Checking CurseForge"
-      }
-      const query = item.tool === "search" ? item.arguments?.query : undefined
-      return query ? `Searching Wowhead for "${query}"` : "Reading Wowhead"
+      return activity(item.tool ?? "", item.arguments)
     }
     case "todo_list": {
       return "Planning"

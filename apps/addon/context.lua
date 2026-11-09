@@ -384,7 +384,7 @@ end
 -- cost the game shows. Spells they already know aren't listed.
 local function scanTrainer()
     local npc = UnitName("npc")
-    if not usable(npc) then return end
+    if not usable(npc) or not (GetNumTrainerServices and GetTrainerServiceInfo) then return end
     local list = {}
     for i = 1, GetNumTrainerServices() do
         local name, rank, kind = GetTrainerServiceInfo(i)
@@ -400,19 +400,31 @@ local function scanTrainer()
     WaiCharDB.trainers[npc] = { at = here(), zone = GetZoneText(), services = list, seen = time() }
 end
 
+-- The modern client moved GetMerchantItemInfo to C_MerchantFrame.GetItemInfo, which returns a table.
+local function merchantItem(i)
+    if C_MerchantFrame and C_MerchantFrame.GetItemInfo then
+        local info = C_MerchantFrame.GetItemInfo(i)
+        return info and info.name, info and info.price
+    end
+    if GetMerchantItemInfo then
+        local name, _, price = GetMerchantItemInfo(i)
+        return name, price
+    end
+end
+
 local function scanVendor()
     local npc = UnitName("npc")
-    if not usable(npc) then return end
+    if not usable(npc) or not GetMerchantNumItems then return end
     local items = {}
     for i = 1, GetMerchantNumItems() do
-        local name, _, price = GetMerchantItemInfo(i)
+        local name, price = merchantItem(i)
         if name then items[#items + 1] = ("%s %s"):format(name, money(price)) end
     end
     if #items == 0 then return end
     WaiDB.vendors = WaiDB.vendors or {}
     WaiDB.vendors[npc] = { at = here(), zone = GetZoneText(), items = items, seen = time() }
 end
-context.scanTrainer, context.scanVendor = scanTrainer, scanVendor
+context.scanTrainer, context.scanVendor, context.money = scanTrainer, scanVendor, money
 
 local seen = CreateFrame("Frame")
 for _, event in ipairs({ "TRAINER_SHOW", "TRAINER_UPDATE", "MERCHANT_SHOW", "MERCHANT_UPDATE" }) do

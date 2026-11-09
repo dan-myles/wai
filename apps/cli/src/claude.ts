@@ -12,12 +12,13 @@ import {
   skill,
   streamLines,
 } from "./agent"
+import { activity as toolActivity, TOOL_NAMES } from "./mcp"
 
-interface ToolInput {
+type ToolInput = {
   query?: string
   url?: string
   file_path?: string
-}
+} & Record<string, unknown>
 
 // The parts of Claude's stream-json events the bridge reads.
 interface StreamEvent {
@@ -65,22 +66,14 @@ export function describe(name: string, input: ToolInput = {}): string {
     case "Bash": {
       return "Running a command"
     }
-    case `mcp__${MCP_NAME}__search`: {
-      return input.query
-        ? `Searching Wowhead for "${input.query}"`
-        : "Searching Wowhead"
-    }
-    case `mcp__${MCP_NAME}__lookup`: {
-      return "Reading Wowhead"
-    }
-    case `mcp__${MCP_NAME}__curseforge`: {
-      return "Checking CurseForge"
-    }
     case "TodoWrite": {
       return "Planning"
     }
     default: {
-      return "Working"
+      const prefix = `mcp__${MCP_NAME}__`
+      return name.startsWith(prefix)
+        ? toolActivity(name.slice(prefix.length), input)
+        : "Working"
     }
   }
 }
@@ -130,9 +123,7 @@ export async function runClaude(
     JSON.stringify({ mcpServers: { [MCP_NAME]: mcpServer() } }),
     "--allowedTools",
     ...SOURCES.map((site) => `WebFetch(domain:www.${site})`),
-    `mcp__${MCP_NAME}__search`,
-    `mcp__${MCP_NAME}__lookup`,
-    `mcp__${MCP_NAME}__curseforge`,
+    ...TOOL_NAMES.map((tool) => `mcp__${MCP_NAME}__${tool}`),
     // Denied outright, so a player's own settings can't allow it back in.
     "--disallowedTools",
     "WebSearch",

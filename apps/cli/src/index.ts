@@ -11,7 +11,14 @@ import { watch } from "node:fs"
 import { readdir, readFile, stat } from "node:fs/promises"
 import { join } from "node:path"
 
-import { NAMES, agentPath, currentAgent, INSTALL_HINTS, isAgent } from "./agent"
+import {
+  NAMES,
+  agentPath,
+  currentAgent,
+  INSTALL_HINTS,
+  isAgent,
+  setGameUrl,
+} from "./agent"
 import { runClaude } from "./claude"
 import { runCodex } from "./codex"
 import { gameBlock, remember } from "./context"
@@ -620,6 +627,7 @@ const KINDS: Record<number, string> = {
   4: "video",
   5: "update",
   6: "hello",
+  7: "answer",
 }
 
 async function installAddon(who: string, tab: string, project: number) {
@@ -721,6 +729,10 @@ async function handle(peer: Peer, body: Buffer) {
   if (note) {
     say(chatKey(who, tab), "status", note, { done: true })
   }
+  if (kind === "answer") {
+    answers.get(Number(text))?.(ctx ?? "")
+    return
+  }
   if (kind === "hello") {
     entry.view = viewFromDigest(text, live(who))
     console.log(`wai: ${who} is online`)
@@ -752,6 +764,66 @@ async function handle(peer: Peer, body: Buffer) {
   }
   await receive([{ ctx, kind, seq, tab, text, who }])
 }
+
+// --- Game questions ----------------------------------------------------------------------------
+
+// The agent's `game` tool (mcp.ts) posts here. The question goes down the link to the addon of the
+// character whose message is being answered (query.lua there), and the answer comes back up as kind 7.
+const GAME_TIMEOUT_MS = 20_000
+const GAME_FIELDS = ["query", "name", "id", "class", "service", "from", "to"]
+const answers = new Map<number, (text: string) => void>()
+let questions = 0
+
+function askGame(question: Record<string, unknown>): Promise<string> {
+  const who = inFlight?.slice(0, inFlight.lastIndexOf("#"))
+  const entry = [...peers.values()].find((e) => e.who === who)
+  if (!entry) {
+    return Promise.resolve(
+      "The game isn't connected right now (wai's live link is down), so it can't answer.",
+    )
+  }
+  const fields = Object.fromEntries(
+    GAME_FIELDS.flatMap((k) => {
+      const v = question[k]
+      return typeof v === "string" || typeof v === "number" ? [[k, v]] : []
+    }),
+  )
+  questions += 1
+  const id = questions
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      answers.delete(id)
+      resolve("The game didn't answer in time.")
+    }, GAME_TIMEOUT_MS)
+    answers.set(id, (text) => {
+      clearTimeout(timer)
+      answers.delete(id)
+      resolve(text)
+    })
+    sendLua(entry.peer, { ask: fields, askId: id })
+  })
+}
+
+// Local only, and the path is a secret only agent runs started by this bridge are given.
+const gameToken = crypto.randomUUID()
+const gameServer = Bun.serve({
+  fetch: async (req) => {
+    if (
+      req.method !== "POST" ||
+      new URL(req.url).pathname !== `/${gameToken}`
+    ) {
+      return new Response("not found", { status: 404 })
+    }
+    const question = (await req.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >
+    return new Response(await askGame(question))
+  },
+  hostname: "127.0.0.1",
+  port: 0,
+})
+setGameUrl(`http://127.0.0.1:${gameServer.port}/${gameToken}`)
 
 const link = new Link(ACCOUNTS_DIR, state.gen, state.links, {
   drained: (peer) => push(peers.get(peer.file)),

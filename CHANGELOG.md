@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.4-nightly.4 (2026-11-09)
+
+**Restart WoW once after updating** (new addon files).
+
+- **The game answers the agent's questions.** wai can now ask your client directly while it
+  works on a reply, over the live link.
+  - **Training:** wai carries Forever's full class trainer table (from WhatsTraining's Forever
+    data), so "when do I get Disengage?" or "what can I train at 20?" is answered with the right
+    level and cost, marked with what you already know. You no longer need to open a trainer first.
+  - **With Questie installed:** wai reads Questie's Forever database for exact NPC and object
+    spawn points, quest givers, turn-ins and prerequisites, your class trainers, and town services
+    (bankers, innkeepers, flight masters...). Waypoints use those coordinates.
+- **Everloot as another source.** The agent can read Everloot's player-observed Forever data:
+  what a vendor actually sells, where an item drops or is sold, what's near a spot, talent builds,
+  your realm's auction prices, and Blizzard's latest Forever hotfixes and blue posts. Only
+  Everloot's Forever tools are allowed, and the version is pinned to Forever.
+- Fixed: opening a vendor threw an error (`context.lua:408`) and wai never learned what vendors
+  sell. Forever's client has a newer merchant API; wai uses it now.
+
 ## 0.9.4-nightly.3 (2026-11-09)
 
 **Restart WoW once after updating** (new helper addons). Until you do, messages send when you reload.

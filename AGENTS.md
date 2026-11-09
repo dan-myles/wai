@@ -38,9 +38,12 @@ docs/DESIGN.md for the visual language.
 - Agents live in `apps/cli/src/agent.ts` (shared), `claude.ts` and `codex.ts`; each chat's session
   belongs to one agent. An optional gateway (`wai proxy`, e.g. CLIProxyAPI) is passed to each CLI per
   run through flags and env, never by editing the player's own CLI configs. The agent's capabilities live in
-  `apps/cli/SKILL.md`, injected into every prompt. `wai mcp` (`mcp.ts`, `wowhead.ts`, `curseforge.ts`) is attached to
-  every run the same way (Claude's `--mcp-config`, Codex's `-c mcp_servers.*`); its tools must stay
-  read-only and marked so, or Codex refuses them. Reply markup
+  `apps/cli/SKILL.md`, injected into every prompt. `wai mcp` (`mcp.ts`, `wowhead.ts`, `curseforge.ts`,
+  `everloot.ts`) is attached to every run the same way (Claude's `--mcp-config`, Codex's
+  `-c mcp_servers.*`); its tools must stay read-only and marked so, or Codex refuses them. Its `game`
+  tool posts to the bridge's local endpoint (`--game`, index.ts), which asks the addon over the link;
+  `query.lua` answers from `training.lua` (WhatsTraining's Forever tables, kept verbatim) and, when
+  installed, Questie's `LibQuestieDB`. Reply markup
   (`[[item:..]]`, `[[setway:..]]`, `[[remember:..]]`...) is rendered and acted on by `links.lua` and `wai.lua`.
 - Game context (`context.lua` -> `apps/cli/src/context.ts`) must fit one message: slow fields are
   remembered by the bridge and sent only on change, keyed to the bridge's `ctxEpoch`; the rest are
@@ -49,8 +52,9 @@ docs/DESIGN.md for the visual language.
   docs/TELEMETRY.md and the collector's schema, and never send chat text or names.
 - Agents may only read wowhead.com and curseforge.com (`SOURCES` in `agent.ts`): Claude through
   `--allowedTools WebFetch(domain:...)` with WebSearch disallowed, Codex through
-  `tools.web_search.allowed_domains`. Facts come from the game first (`context.lua`: talent tree,
-  spellbook, trainers, vendors), then Wowhead; `verify.ts` checks every finished reply.
+  `tools.web_search.allowed_domains`. Everloot is reached only through `everloot.ts`, which allows its
+  Forever-specific tools and pins `version`/`game` to Forever. Facts come from the game first
+  (`context.lua`, the `game` tool), then Wowhead, then Everloot; `verify.ts` checks every finished reply.
 - Addons install from CurseForge only, and only after the player clicks an Install link
   (`curseforge.ts`); never from other sites, and never over wai's own folders.
 - Never write anything that automates gameplay. wai reads state, shows information and builds UI.

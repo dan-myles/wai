@@ -64,10 +64,18 @@ export const proxyRoot = (url: string) =>
 // so they're locked out, not just discouraged (Claude's permission rules, Codex's search domains).
 export const SOURCES = ["wowhead.com", "curseforge.com"] as const
 
-// wai's own MCP server (mcp.ts), attached to every run under this name.
+// wai's own MCP server (mcp.ts), attached to every run under this name. The bridge sets the URL
+// its game questions go to once its local endpoint is up (index.ts).
 export const MCP_NAME = "wai"
+let gameUrl: string | undefined
+export const setGameUrl = (url: string) => {
+  gameUrl = url
+}
 export function mcpServer(): { command: string; args: string[] } {
-  const [command = "wai", ...args] = selfCommand("mcp")
+  const [command = "wai", ...args] = selfCommand(
+    "mcp",
+    ...(gameUrl ? ["--game", gameUrl] : []),
+  )
   return { command, args }
 }
 

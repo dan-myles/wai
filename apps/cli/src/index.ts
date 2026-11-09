@@ -1,12 +1,14 @@
 import type { Agent, OnUpdate } from "./agent"
 import type { Memory } from "./context"
+import type { Cursors, Peer } from "./link"
+import type { Live, View } from "./sync"
 
-// wai bridge. Receives messages from screenshots (live) or the SavedVariables outbox (on reload),
-// asks the agent (Claude or Codex), and streams replies back through slot addons (live) and
+// wai bridge. Receives messages over the live link (link.ts) or from the SavedVariables outbox (on
+// reload), asks the agent (Claude or Codex), and streams replies back over the link (live) and
 // Data.lua (on reload). Every chat is keyed "Name-Realm#tab": each character has its own tabs,
 // each with its own agent session.
 import { watch } from "node:fs"
-import { mkdir, readdir, readFile, stat, unlink } from "node:fs/promises"
+import { readdir, readFile, stat } from "node:fs/promises"
 import { join } from "node:path"
 
 import { NAMES, agentPath, currentAgent, INSTALL_HINTS, isAgent } from "./agent"
@@ -20,21 +22,18 @@ import {
   MODULES_DIR,
   MODULES_FILE,
   MOD_SLOT_COUNT,
-  SCREENSHOTS_DIR,
-  SLOT_COUNT,
   STATE_FILE,
   VID_SLOT_COUNT,
   ensureStubs,
   modSlotFile,
-  slotFile,
-  slotOffset,
   vidSlotFile,
   writeAtomic,
   writeConfig,
 } from "./files"
-import { parseSavedVariables, toLua } from "./lua"
+import { Link } from "./link"
+import { parseSavedVariables, toLua, toLuaCompact } from "./lua"
 import { relaunchSelf } from "./service"
-import { IncompleteError, decode, parseTga } from "./shot"
+import { diff, viewFromDigest } from "./sync"
 import { record, setClient, setConsent } from "./telemetry"
 import { availableUpdate, currentTrack, isTrack, update } from "./update"
 import { check } from "./verify"
@@ -71,6 +70,9 @@ interface State {
   // Remembered game context per character (context.ts); a new epoch tells the addon to resend it.
   memory: Record<string, Memory>
   ctxEpoch: string
+  // How far each AddOns.txt's up lane has been read, and this run's number on the link (link.ts).
+  links: Cursors
+  gen: number
 }
 interface Item {
   seq: number
@@ -80,16 +82,12 @@ interface Item {
   text?: string
   ctx?: string | Record<string, unknown>
   current?: [string, string][] // this message's own context fields, once remembered
-  slot: number
   id?: number // the player's message, once it's in the chat
 }
 
 const KEEP = 200
 const DATA_MESSAGES = 50
-const SLOT_MESSAGES = 6
-// Slots the addon might load next, around where the shared schedule says it is.
-const SLOTS_BEHIND = 30
-const SLOTS_AHEAD = 20
+const LIVE_MESSAGES = 6
 const STREAM_THROTTLE_MS = 500
 const HEARTBEAT_MS = 2000
 const now = () => Math.floor(Date.now() / 1000)
@@ -101,6 +99,8 @@ const loaded = await readFile(STATE_FILE, "utf-8")
 const state: State = {
   chats: loaded?.chats ?? {},
   ctxEpoch: loaded?.ctxEpoch ?? crypto.randomUUID().slice(0, 8),
+  gen: ((loaded?.gen ?? 0) % 255) + 1,
+  links: loaded?.links ?? {},
   memory: loaded?.memory ?? {},
   modules: loaded?.modules ?? {},
   nextId: loaded?.nextId ?? 1,
@@ -134,8 +134,6 @@ let inFlight: string | undefined // chat key
 let updateAvailable: string | undefined // newer release version, if any
 let draining = false
 let beat = 0 // bumps on every publish so the addon can tell a live bridge from a stalled one
-// Where the addon started polling: slot k0 at time `start`, for character `who`.
-let schedule: { k0: number; start: number; who: string } | undefined
 
 // Opt-in error reports; `who` lets the scrubber strip the character's name and realm.
 const reportError = (event: string, error: unknown, who = "") => {
@@ -324,29 +322,45 @@ async function playVideo(who: string, kind: string, query: string) {
 
 // --- Publishing ------------------------------------------------------------------------------
 
-async function writeSlots() {
-  if (!schedule) {
+// Everything one character's addon shows live: its chats' latest messages and the bridge's state.
+function live(who: string): Live {
+  const prefix = `${who}#`
+  return {
+    chats: Object.fromEntries(
+      Object.keys(state.chats)
+        .filter((k) => k.startsWith(prefix))
+        .map((k) => [k.slice(prefix.length), snapshot(k, LIVE_MESSAGES)]),
+    ),
+    top: {
+      agent: currentAgent(),
+      beat,
+      ctxEpoch: state.ctxEpoch,
+      modules: modulesSnapshot(),
+      track: currentTrack(),
+      update: updateAvailable ? { version: updateAvailable } : undefined,
+      video: videos.get(who),
+    },
+  }
+}
+
+// Each running addon on the link: whose it is, and what it already has once it said hello.
+const peers = new Map<
+  string,
+  { peer: Peer; who?: string; view?: View; asked?: boolean }
+>()
+
+const sendLua = (peer: Peer, value: unknown) =>
+  link.send(peer, Buffer.from(toLuaCompact(value)))
+
+// Sends each addon what changed since its last message, once the link has delivered that one.
+function push(entry: { peer: Peer; who?: string; view?: View } | undefined) {
+  if (!entry?.who || !entry.view || !link.idle(entry.peer)) {
     return
   }
-  const est = schedule.k0 + slotOffset((Date.now() - schedule.start) / 1000)
-  const from = Math.max(schedule.k0, est - SLOTS_BEHIND)
-  const to = Math.min(SLOT_COUNT, est + SLOTS_AHEAD)
-  if (from > to) {
-    return
+  const changes = diff(entry.view, live(entry.who))
+  if (changes) {
+    sendLua(entry.peer, changes)
   }
-  const prefix = `${schedule.who}#`
-  const chats = Object.fromEntries(
-    Object.keys(state.chats)
-      .filter((k) => k.startsWith(prefix))
-      .map((k) => [k.slice(prefix.length), snapshot(k, SLOT_MESSAGES)]),
-  )
-  const newer = updateAvailable ? { version: updateAvailable } : undefined
-  const content = `WaiSlot = ${toLua({ agent: currentAgent(), beat, chats, ctxEpoch: state.ctxEpoch, modules: modulesSnapshot(), track: currentTrack(), update: newer, video: videos.get(schedule.who), who: schedule.who })}\n`
-  const writes = []
-  for (let i = from; i <= to; i++) {
-    writes.push(writeAtomic(slotFile(i), content))
-  }
-  await Promise.all(writes)
 }
 
 // Writes are chained so concurrent callers never interleave on the same tmp files.
@@ -357,6 +371,7 @@ function publish() {
     for (const c of Object.values(state.chats)) {
       c.messages = c.messages.slice(-KEEP)
     }
+    state.links = link.cursors
     await writeAtomic(STATE_FILE, JSON.stringify(state, null, 2))
     const chats = Object.fromEntries(
       Object.keys(state.chats).map((k) => [k, snapshot(k, DATA_MESSAGES)]),
@@ -366,7 +381,9 @@ function publish() {
       DATA_FILE,
       `-- Generated by the wai bridge. Do not edit.\nWaiData = ${toLua({ agent: currentAgent(), beat, chats, ctxEpoch: state.ctxEpoch, track: currentTrack(), update: newer })}\n`,
     )
-    await writeSlots()
+    for (const entry of peers.values()) {
+      push(entry)
+    }
   }
   return (writing = writing.then(write, write).catch((error) => {
     console.error("wai: publish failed", error)
@@ -423,9 +440,8 @@ async function receive(items: Item[]) {
     }
   }
   const last = fresh.at(-1)!
-  schedule = { k0: last.slot, start: Date.now(), who: last.who }
   console.log(
-    `wai: ${chatKey(last.who, last.tab)} sent through seq ${last.seq} (slot ${last.slot})`,
+    `wai: ${chatKey(last.who, last.tab)} sent through seq ${last.seq}`,
   )
   await publish()
   void drain()
@@ -572,7 +588,7 @@ async function drain() {
           { done: true },
         )
       }
-      // Fetch any video the reply asked for before finishing, so the addon is still polling.
+      // Fetch any video the reply asked for before finishing, so the addon is still watching.
       const video = res.text.match(/\[\[(video|clip):([^\]]+)\]\]/)
       if (video) {
         c.activity = "Loading video"
@@ -595,7 +611,7 @@ async function drain() {
   draining = false
 }
 
-// --- Inbound: screenshots (live) -------------------------------------------------------------
+// --- Inbound: the live link ------------------------------------------------------------------
 
 const KINDS: Record<number, string> = {
   1: "chat",
@@ -603,6 +619,7 @@ const KINDS: Record<number, string> = {
   3: "ping",
   4: "video",
   5: "update",
+  6: "hello",
 }
 
 async function installAddon(who: string, tab: string, project: number) {
@@ -663,8 +680,6 @@ async function runUpdate(who: string, tab: string) {
   c.activity = undefined
   await publish()
 }
-const reading = new Set<string>()
-
 // Every message carries the player's telemetry choice ("t=1"/"t=0"), the client build ("c=…")
 // and, if they opted in, the addon's own error reports, one "event<TAB>detail" per line. A switch
 // in /settings adds the agent ("a=codex") or the update track ("u=nightly"); the returned note
@@ -691,76 +706,63 @@ function applyFlags(flags: string, who: string, reports: string) {
   )
 }
 
-async function readShot(path: string) {
-  if (reading.has(path)) {
+// One message from an addon: kind, seq(2), then text \0 context \0 who \0 tab \0 flags \0 reports.
+async function handle(peer: Peer, body: Buffer) {
+  const entry = peers.get(peer.file)
+  if (!entry || entry.peer.session !== peer.session || body.length < 3) {
     return
   }
-  reading.add(path)
-  try {
-    // The client may still be writing the file when the watcher fires.
-    for (let attempt = 0; attempt < 30; attempt++) {
-      try {
-        const shot = decode(parseTga(await readFile(path)))
-        if (!shot) {
-          return
-        } // a real screenshot, leave it alone
-        await unlink(path)
-        const [text, ctx, who = "", tab = "main", flags = "", reports = ""] =
-          shot.payload.split("\0")
-        const note = applyFlags(flags, who, reports)
-        if (note) {
-          say(chatKey(who, tab), "status", note, { done: true })
-        }
-        if (KINDS[shot.kind] === "update") {
-          schedule = { k0: shot.slot, start: Date.now(), who }
-          await runUpdate(who, tab)
-          return
-        }
-        if (KINDS[shot.kind] === "ping" || KINDS[shot.kind] === "video") {
-          schedule = { k0: shot.slot, start: Date.now(), who }
-          // An Install link the player clicked: "i=<CurseForge project ID>".
-          const project = Number(/(?:^|;)i=(\d+)/.exec(flags)?.[1])
-          if (project) {
-            await installAddon(who, tab, project)
-          }
-          // A direct video request from the Fun menu: "clip:query" or "video:query", no Claude involved.
-          const request =
-            KINDS[shot.kind] === "video" && text?.match(/^(video|clip):(.+)$/)
-          if (request) {
-            await playVideo(who, request[1]!, request[2]!)
-          }
-          await publish()
-          return
-        }
-        await receive([
-          {
-            ctx,
-            kind: KINDS[shot.kind] ?? "chat",
-            seq: shot.seq,
-            slot: shot.slot,
-            tab,
-            text,
-            who,
-          },
-        ])
-        return
-      } catch (error) {
-        if (
-          !(error instanceof IncompleteError) &&
-          (error as NodeJS.ErrnoException).code !== "ENOENT"
-        ) {
-          throw error
-        }
-      }
-      await Bun.sleep(100)
-    }
-  } catch (error) {
-    console.error(`wai: failed to read ${path}`, error)
-    reportError("decode_error", error)
-  } finally {
-    reading.delete(path)
+  const kind = KINDS[body[0]!] ?? "chat"
+  const seq = (body[1]! << 8) | body[2]!
+  const [text = "", ctx, who = "", tab = "main", flags = "", reports = ""] =
+    body.subarray(3).toString("utf8").split("\0")
+  entry.who = who
+  const note = applyFlags(flags, who, reports)
+  if (note) {
+    say(chatKey(who, tab), "status", note, { done: true })
   }
+  if (kind === "hello") {
+    entry.view = viewFromDigest(text, live(who))
+    console.log(`wai: ${who} is online`)
+    await publish()
+    return
+  }
+  // This bridge started after the addon did: ask what it has, so it gets only what's new.
+  if (!entry.view && !entry.asked) {
+    entry.asked = true
+    sendLua(peer, { hello: true })
+  }
+  if (kind === "update") {
+    await runUpdate(who, tab)
+    return
+  }
+  if (kind === "ping" || kind === "video") {
+    // An Install link the player clicked: "i=<CurseForge project ID>".
+    const project = Number(/(?:^|;)i=(\d+)/.exec(flags)?.[1])
+    if (project) {
+      await installAddon(who, tab, project)
+    }
+    // A direct video request from the Fun menu: "clip:query" or "video:query", no Claude involved.
+    const request = kind === "video" && text.match(/^(video|clip):(.+)$/)
+    if (request) {
+      await playVideo(who, request[1]!, request[2]!)
+    }
+    await publish()
+    return
+  }
+  await receive([{ ctx, kind, seq, tab, text, who }])
 }
+
+const link = new Link(ACCOUNTS_DIR, state.gen, state.links, {
+  drained: (peer) => push(peers.get(peer.file)),
+  message: (peer, body) => {
+    handle(peer, body).catch((error) => {
+      console.error("wai: message failed", error)
+      reportError("message_error", error)
+    })
+  },
+  session: (peer) => peers.set(peer.file, { peer }),
+})
 
 // --- Inbound: SavedVariables outbox (on reload) -----------------------------------------------
 
@@ -784,28 +786,19 @@ async function scan() {
   const db = parseSavedVariables(await readFile(sv.path, "utf-8")).WaiDB as
     | { outbox?: unknown; who?: unknown }
     | undefined
-  // SavedVariables are written on reload/logout: the addon polls from slot 1 again, and every
-  // module is now in ModuleDefs.lua, so the module slots start over.
-  schedule = {
-    k0: 1,
-    start: Date.now(),
-    who: typeof db?.who === "string" ? db.who : "",
-  }
+  // SavedVariables are written on reload/logout: every module is now in ModuleDefs.lua, so the
+  // module and video slots start over.
   modSlotsUsed = 0
   moduleSlots.clear()
   vidSlotsUsed = 0
   videos.clear()
-  const outbox = (Array.isArray(db?.outbox) ? db.outbox : []) as Omit<
-    Item,
-    "slot"
-  >[]
+  const outbox = (Array.isArray(db?.outbox) ? db.outbox : []) as Item[]
   await receive(
     outbox
       .filter((i) => typeof i?.seq === "number")
       .map((i) => ({
         ...i,
         kind: i.kind ?? "chat",
-        slot: 1,
         tab: typeof i.tab === "string" ? i.tab : "main",
         who: typeof i.who === "string" ? i.who : "",
       })),
@@ -831,13 +824,6 @@ watch(ACCOUNTS_DIR, { recursive: true }, (_, filename) => {
   debounce = setTimeout(rescan, 250)
 })
 
-await mkdir(SCREENSHOTS_DIR, { recursive: true })
-watch(SCREENSHOTS_DIR, (_, filename) => {
-  if (filename?.toString().endsWith(".tga")) {
-    void readShot(join(SCREENSHOTS_DIR, filename.toString()))
-  }
-})
-
 await ensureStubs()
 let moduleDebounce: Timer | undefined
 watch(MODULES_DIR, () => {
@@ -851,6 +837,7 @@ watch(MODULES_DIR, () => {
 
 await scanModules(true)
 await publish()
+await link.start()
 
 const logUpdateError = (error: unknown) =>
   console.error("wai: update check failed", error)
@@ -874,7 +861,5 @@ setInterval(
   },
   24 * 60 * 60 * 1000,
 )
-console.log(
-  `wai bridge: watching ${ACCOUNTS_DIR}, ${SCREENSHOTS_DIR} and ${MODULES_DIR}`,
-)
+console.log(`wai bridge: watching ${ACCOUNTS_DIR} and ${MODULES_DIR}`)
 rescan()

@@ -2,13 +2,14 @@
 ## Title: wai
 ## Notes: Talk to Claude or Codex from inside the game. /wai
 ## Author: dan-myles
-## Version: 0.9.4-nightly.2
+## Version: 0.9.4-nightly.3
 ## Category: wai
 ## SavedVariables: WaiDB
 ## SavedVariablesPerCharacter: WaiCharDB
 
 Data.lua
 wai.lua
+link.lua
 theme.lua
 context.lua
 links.lua

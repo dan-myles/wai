@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.9.4-nightly.3 (2026-11-09)
+
+**Restart WoW once after updating** (new helper addons). Until you do, messages send when you reload.
+
+- **A new live link, no more screenshots.** wai and the bridge now talk through 2,048 empty helper
+  addons whose on/off states are bits: the addon switches its lane and saves, the bridge reads it
+  from your character's `AddOns.txt` and writes its own lane back, and the addon reads that with
+  `ResetAddOns()`. Nothing flashes on screen, no "Screen captured" message, no files in your
+  Screenshots folder, and the old "live session is full, reload" limit is gone.
+- **Faster.** Each frame carries an ack of the other side's, so the next one goes as soon as the
+  last is confirmed, about one per game frame. Your messages are compressed, and the bridge sends
+  only what changed: the new part of a streaming reply instead of the whole chat every time.
+- **Self-healing.** Frames are checksummed; if either side saves over the other's lane, it's
+  noticed and rewritten. A restarted bridge asks the addon what it already has and carries on.
+- Opening the AddOns list pauses the link so your choices there aren't lost.
+- UI modules and videos still load through their own slots, as before.
+
 ## 0.9.4-nightly.2 (2026-11-06)
 
 wai stops answering from Classic memory.

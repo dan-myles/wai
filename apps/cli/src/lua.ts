@@ -201,6 +201,29 @@ function quote(s: string) {
   )}"`
 }
 
+// The same, on one line with bare keys where Lua allows them: for messages over the live link.
+export function toLuaCompact(v: unknown): string {
+  if (v === null || v === undefined || typeof v !== "object") {
+    return toLua(v)
+  }
+  if (Array.isArray(v)) {
+    return `{${v.map(toLuaCompact).join(",")}}`
+  }
+  const fields = Object.entries(v)
+    .filter(([, x]) => x !== undefined)
+    .map(
+      ([k, x]) =>
+        `${/^[A-Za-z_]\w*$/.test(k) && !LUA_KEYWORDS.has(k) ? k : `[${quote(k)}]`}=${toLuaCompact(x)}`,
+    )
+  return `{${fields.join(",")}}`
+}
+
+const LUA_KEYWORDS = new Set(
+  "and break do else elseif end false for function if in local nil not or repeat return then true until while".split(
+    " ",
+  ),
+)
+
 export function toLua(v: unknown, indent = ""): string {
   if (v === null || v === undefined) {
     return "nil"

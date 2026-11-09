@@ -24,7 +24,8 @@ The in-game choice travels with every message to the bridge, which stores it in 
 | `at` | ISO timestamp | |
 
 Events: `lua_error` (an error in the addon), `stalled` (the addon lost touch with the bridge),
-`claude_error`, `codex_error`, `video_error`, `update_error`, `install_error`, `decode_error`, `publish_error`, `scan_error`.
+`link_unavailable` (the client can't run the live link; the detail says which part is missing),
+`claude_error`, `codex_error`, `video_error`, `update_error`, `install_error`, `message_error`, `publish_error`, `scan_error`.
 
 Never sent: your messages or the agent's replies, quest log, target, chat around you, character or
 account names, file contents.

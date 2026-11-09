@@ -499,8 +499,8 @@ end
 -- subject: optional { details = "..." } for whatever the player alt-clicked or attached.
 -- tab: the chat this message is for ({ name, manual }), so Claude can title it.
 -- message: the player's text; it decides what's relevant (macros, chat) and how much room is left.
--- The screenshot holds about 3 KB, so fields go in priority order, each within its own budget,
--- and whatever doesn't fit (a remembered field) simply goes with a later message.
+-- A message holds about 3 KB (more takes longer to send), so fields go in priority order, each
+-- within its own budget, and whatever doesn't fit (a remembered field) goes with a later message.
 function context.collect(subject, tab, message)
     local room = ns.core.room(message)
     local mem = memory()

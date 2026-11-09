@@ -34,7 +34,7 @@ const HELP = `wai ${VERSION}: Claude or Codex inside World of Warcraft: Forever
 
 Usage: wai <command>
 
-  install [--wow <path>]   link the addon into WoW, create slot addons, start the bridge at login
+  install [--wow <path>]   link the addon into WoW, create helper addons, start the bridge at login
   run                      run the bridge (the background service does this for you)
   update                   update wai to the latest release (alias: upgrade)
   status                   check that everything wai needs is in place (alias: doctor)

@@ -1,7 +1,7 @@
 import type { Proxy } from "./agent"
 
 // `wai install`, `wai uninstall` and `wai doctor`: put the addon into WoW: Forever, create the
-// helper slot addons, and run the bridge at login.
+// helper addons (the live link's lanes and the module and video slots), and run the bridge at login.
 import { existsSync } from "node:fs"
 import {
   exists,
@@ -32,25 +32,29 @@ import {
   HOME,
   INSTALL_RECORD,
   MOD_SLOT_COUNT,
-  SLOT_COUNT,
   VID_SLOT_COUNT,
   WOW_CANDIDATES,
   ensureStubs,
   findWowDir,
   modSlotName,
   readConfig,
-  slotName,
   vidSlotName,
 } from "./files"
+import { BITS, downName, upName } from "./link"
 import { bridgePid, register, registered, unregister } from "./service"
 import { ensureFfmpeg, ensureYtDlp, toolsPresent } from "./tools"
 import { VERSION } from "./version"
 
 const SLOT_POOLS: [number, (i: number) => string, string, string][] = [
-  [SLOT_COUNT, slotName, "slot.lua", "wai slot"],
   [MOD_SLOT_COUNT, modSlotName, "mod.lua", "wai ui"],
   [VID_SLOT_COUNT, vidSlotName, "chunk.lua", "wai video"],
 ]
+// The link's lanes (link.ts): never loaded, only switched on and off. Named from 0.
+const LANES: [string, (i: number) => string][] = [
+  ["wai link up", upName],
+  ["wai link down", downName],
+]
+const HELPERS = /^wai_(slot|mod|vid|up|dn)\d+$/
 
 const addonsDir = (wowDir: string) => join(wowDir, "Interface", "AddOns")
 
@@ -79,19 +83,32 @@ async function linkAddon(wowDir: string) {
   )
 }
 
+const toc = (title: string, file = "") =>
+  `## Interface: 16001\n## Title: ${title}\n## Category: wai\n## Group: wai\n## LoadOnDemand: 1\n${file ? `\n${file}\n` : ""}`
+
 // Load-on-demand helper addons the bridge writes into while you play.
 async function makeSlots(wowDir: string) {
   for (const [count, name, file, title] of SLOT_POOLS) {
     for (let i = 1; i <= count; i++) {
       const dir = join(addonsDir(wowDir), name(i))
       await mkdir(dir, { recursive: true })
-      await writeFile(
-        join(dir, `${name(i)}.toc`),
-        `## Interface: 16001\n## Title: ${title} ${i}\n## Category: wai\n## Group: wai\n## LoadOnDemand: 1\n\n${file}\n`,
-      )
+      await writeFile(join(dir, `${name(i)}.toc`), toc(`${title} ${i}`, file))
       if (!(await exists(join(dir, file)))) {
         await writeFile(join(dir, file), "-- empty\n")
       }
+    }
+  }
+  for (const [title, name] of LANES) {
+    for (let i = 0; i < BITS; i++) {
+      const dir = join(addonsDir(wowDir), name(i))
+      await mkdir(dir, { recursive: true })
+      await writeFile(join(dir, `${name(i)}.toc`), toc(`${title} ${i}`))
+    }
+  }
+  // Message slots from before the link (0.9.4-nightly.2 and earlier).
+  for (const entry of await readdir(addonsDir(wowDir))) {
+    if (/^wai_slot\d+$/.test(entry)) {
+      await rm(join(addonsDir(wowDir), entry), { force: true, recursive: true })
     }
   }
 }
@@ -173,7 +190,7 @@ export async function uninstall(args: string[]) {
   if (wowDir && (await exists(addonsDir(wowDir)))) {
     const dir = addonsDir(wowDir)
     for (const entry of await readdir(dir)) {
-      if (entry === "wai" || /^wai_(slot|mod|vid)\d+$/.test(entry)) {
+      if (entry === "wai" || HELPERS.test(entry)) {
         await rm(join(dir, entry), { recursive: true, force: true })
       }
     }
@@ -236,15 +253,16 @@ export async function doctor() {
       (await realpath(link).catch(() => "")) ===
       (await realpath(ADDON_DIR).catch(() => "-"))
     checks.push(["addon linked", linked, linked ? link : "run wai install"])
-    const missing = SLOT_POOLS.filter(
-      ([count, name]) => !existsSync(join(addonsDir(wowDir), name(count))),
-    )
+    const missing = [
+      ...SLOT_POOLS.map(([count, name]) => name(count)),
+      ...LANES.map(([, name]) => name(BITS - 1)),
+    ].filter((name) => !existsSync(join(addonsDir(wowDir), name)))
     checks.push([
-      "slot addons",
+      "helper addons",
       missing.length === 0,
       missing.length
         ? "run wai install"
-        : `${SLOT_COUNT} + ${MOD_SLOT_COUNT} + ${VID_SLOT_COUNT}`,
+        : `link ${BITS} + ${BITS}, slots ${MOD_SLOT_COUNT} + ${VID_SLOT_COUNT}`,
     ])
   }
   // One agent is enough; the one that answers must be installed.

@@ -1,8 +1,9 @@
 # wai Agents.md
 
 wai puts Claude (or Codex) inside World of Warcraft: Forever as a native addon. A Bun bridge talks to the
-game through files only: screenshots out, load-on-demand "slot" addons in. See README.md for how
-it works and docs/DESIGN.md for the visual language.
+game through files only: a live link over helper addons' enabled states in AddOns.txt, plus
+load-on-demand slot addons for UI modules and video. See README.md for how it works and
+docs/DESIGN.md for the visual language.
 
 ## Workspace Rules
 
@@ -20,11 +21,16 @@ it works and docs/DESIGN.md for the visual language.
 
 ## Architecture
 
-- **Out (game to bridge):** the addon paints each message as a bit grid and calls `Screenshot()`;
-  the bridge decodes the TGA. Layout must match between `apps/addon/wai.lua` and `apps/cli/src/shot.ts`.
-- **In (bridge to game):** 500 message slots, 40 UI module slots and 200 video slots, all
-  load-on-demand addons the bridge rewrites. Loading one reads it from disk live. Pool sizes and
-  the polling schedule (`slotOffset`) are mirrored in `apps/cli/src/files.ts` and the addon.
+- **The link (both ways, live):** 1024 `wai_upNNNN` and 1024 `wai_dnNNNN` helper addons are bit
+  lanes. The addon sets its lane with `EnableAddOn`/`DisableAddOn` + `SaveAddOns()` (which rewrites
+  the character's AddOns.txt) and reads the bridge's with `ResetAddOns()`. One frame per lane, each
+  with a seq and an ack of the other lane: stop-and-wait both ways. Frame layout and lane sizes must
+  match between `apps/addon/link.lua` and `apps/cli/src/link.ts`; `link.test.ts` runs both against
+  one file. Messages down are Lua table literals of what changed (`sync.ts`), deflated when the
+  client can inflate. Never call `ResetAddOns`/`SaveAddOns` while the AddOns list is open.
+- **Bulk (bridge to game):** 40 UI module slots and 200 video slots, load-on-demand addons the bridge
+  rewrites; loading one reads it from disk live. Pool sizes are mirrored in `apps/cli/src/files.ts`
+  and the addon.
 - WoW only sees files that existed at launch and caches textures, so anything new the game must
   load has to be a pre-created file. New addon files need a full client restart.
 - The client has secret values: guard unit data with `issecretvalue` + `pcall` (see `context.lua`).
@@ -36,7 +42,7 @@ it works and docs/DESIGN.md for the visual language.
   every run the same way (Claude's `--mcp-config`, Codex's `-c mcp_servers.*`); its tools must stay
   read-only and marked so, or Codex refuses them. Reply markup
   (`[[item:..]]`, `[[setway:..]]`, `[[remember:..]]`...) is rendered and acted on by `links.lua` and `wai.lua`.
-- Game context (`context.lua` -> `apps/cli/src/context.ts`) must fit one screenshot: slow fields are
+- Game context (`context.lua` -> `apps/cli/src/context.ts`) must fit one message: slow fields are
   remembered by the bridge and sent only on change, keyed to the bridge's `ctxEpoch`; the rest are
   budgeted per field.
 - Telemetry is opt-in and anonymous. Never add a field to reports without updating

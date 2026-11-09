@@ -329,8 +329,8 @@ local function setStatus(view)
 end
 
 local function setBanner(view)
-    local n = view.full and {
-        tone = "warn", text = "This live session is full. Reload to keep chatting.", action = "Reload", run = ns.core.reload,
+    local n = view.offline and {
+        tone = "warn", text = view.offline, action = "Reload", run = ns.core.reload,
     } or view.modulesNeedReload and {
         tone = "info", text = "New UI from wai is ready. Reload to load it.", action = "Reload", run = ns.core.reload,
     } or view.notice or view.update and {

@@ -5,6 +5,7 @@ Ideas we're not working on yet. Each needs a feasibility check first.
 Nothing is open right now.
 
 ## Done
+- **Live link (v0.9.4-nightly.3):** screenshots and message slots replaced by bit lanes over helper addons' enabled states in AddOns.txt (`link.lua`/`link.ts`), with acks both ways, deflate and change-only messages (`sync.ts`).
 - **Forever-only facts (v0.9.4-nightly.2):** game data (talent tree, spellbook, trainer and vendor caches) on demand, sources locked to Wowhead and CurseForge, and a Wowhead check of every reply.
 - **Addon installs (v0.9.4-nightly.1):** the agent finds a CurseForge project, checks it has a Forever build with the `curseforge` tool, and offers an Install link; the bridge downloads and unpacks it into AddOns on click.
 - **Wowhead tools (v0.9.3-nightly.11):** `wai mcp` gives both agents `search` and `lookup` against Wowhead's Forever JSON endpoints.

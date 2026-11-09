@@ -1,24 +1,29 @@
--- wai: chat with Claude or Codex from inside WoW, without reloading. This file is state + transport; ui.lua draws.
--- Out: each message is painted as a bit grid and captured with Screenshot(); the bridge decodes the file.
--- In:  the bridge writes snapshots into load-on-demand "slot" addons; loading one reads it from disk live.
--- WaiDB.outbox (SavedVariables) and Data.lua (WaiData) are the reload fallback and history.
+-- wai: chat with Claude or Codex from inside WoW, without reloading. This file is chat state; link.lua
+-- carries messages both ways live, and ui.lua draws. Each message out is one string; each one in is
+-- what changed since the last (merged by id). WaiDB.outbox (SavedVariables) and Data.lua (WaiData)
+-- are the reload fallback and history.
 -- Each character has tabs; each tab is its own conversation on the bridge ("Name-Realm#tab").
 
 local _, ns = ...
 local core = {}
 ns.core = core
+-- link.lua replaces this when it loads. A client started before it was installed can't see the new
+-- file (or the helper addons) until it restarts.
+ns.link = {
+    busy = function() return false end,
+    send = function() return false end,
+    start = function() return false, "helpers" end,
+    ready = function() return false end,
+}
 
-local SLOT_COUNT = 500 -- keep in sync with bridge/src/files.ts
-local POLL_SECONDS = 0.5
 local ACK_TIMEOUT = 12 -- bridge hasn't acknowledged a message
 local STALE_AFTER = 25 -- bridge says it's busy but its heartbeat stopped
-local SHOT_TIMEOUT = 3
 local MAX_TABS = 8
-local GRID_COLS, GRID_ROWS, GRID_MARGIN = 128, 64, 2 -- keep in sync with bridge/src/shot.ts
-local CAPACITY = GRID_COLS * GRID_ROWS * 3 / 8 -- 3 bits per block, one per colour channel
-local HEADER_BYTES = 11
-local VERSION = 2
-local KINDS = { chat = 1, reset = 2, ping = 3, video = 4, update = 5 }
+-- A message's size before compression: text and context together. More takes longer to send.
+local CAPACITY = 3072
+local HEADER_BYTES = 3 -- kind, seq(2)
+local DIGEST_MESSAGES = 8 -- per tab, in the hello; the bridge's live window is 6
+local KINDS = { chat = 1, reset = 2, ping = 3, video = 4, update = 5, hello = 6 } -- bridge/src/index.ts
 local CHARS_PER_SEC = { normal = 90, fast = 260 } -- by the "typing" setting; "instant" skips typing
 
 local LoadAddOn = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
@@ -26,14 +31,14 @@ local LoadAddOn = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
 local who -- "Name-Realm"
 local chats = {} -- tab id -> { messages, byId, ackSeq, busy, activity, unread }
 local notice
-local nextSlot, poll, pollTicker = 1, nil, nil
-local lastBeat, lastBeatAt = nil, 0
+local watch, watchTicker -- while waiting on the bridge: { t0, retried, resynced }
+local offline -- why the live link isn't running, shown with a Reload button
+local lastBeatAt = 0 -- when the bridge was last heard from while watching
 local updateAvailable -- a newer wai release the bridge found
 local agent -- which agent the bridge answers with ("claude" | "codex")
 local track -- the bridge's update track ("stable" | "nightly")
 local ctxEpoch -- the bridge's context memory; context.lua resends everything when it changes
-local contactAt -- when a live snapshot from the bridge last arrived
-local grid, gridBlocks, shots, shooting, savedFormat = nil, nil, {}, nil, nil
+local contactAt -- when a live message from the bridge last arrived
 local localId = 0
 local typer = CreateFrame("Frame")
 
@@ -105,12 +110,13 @@ local function pendingFor(tab)
 end
 
 local function waiting()
-    if #WaiDB.outbox > 0 or shooting or (ns.video and ns.video.loading()) then return true end
+    if #WaiDB.outbox > 0 or ns.link.busy() or (ns.video and ns.video.loading()) then return true end
     for _, c in pairs(chats) do
         if c.busy then return true end
     end
     return false
 end
+core.waiting = waiting
 
 -- Messages --------------------------------------------------------------------------------------
 
@@ -202,13 +208,14 @@ local function capture(m)
     end
 end
 
--- Merges one tab's snapshot (from Data.lua or a slot) into local state.
+-- Merges one tab's snapshot (from Data.lua) or its changes (from the link) into local state. A field
+-- that's missing didn't change; false clears it. A message's `add` is text to append.
 local function merge(tab, snap, live)
     if type(snap) ~= "table" or not findTab(tab) then return end
     local c = chatFor(tab)
     c.ackSeq = math.max(c.ackSeq, snap.ackSeq or 0)
-    c.busy = snap.busy == true
-    c.activity = snap.activity
+    if snap.busy ~= nil then c.busy = snap.busy == true end
+    if snap.activity ~= nil then c.activity = snap.activity or nil end
     local visible = ns.ui.isShown() and tab == activeTab()
     for _, m in ipairs(snap.messages or {}) do
         if m.reset and not c.byId[m.id] then c.messages, c.byId = {}, {} end
@@ -218,7 +225,8 @@ local function merge(tab, snap, live)
             c.byId[m.id] = cur
             c.messages[#c.messages + 1] = cur
         end
-        cur.role, cur.text, cur.done, cur.tab = m.role, m.text or "", m.done, tab
+        cur.role, cur.done, cur.tab = m.role or cur.role, m.done, tab
+        if m.add then cur.text = (cur.text or "") .. m.add else cur.text = m.text or cur.text or "" end
         if not live or cur.role ~= "assistant" or not visible or ns.settings.get("typing") == "instant" then cur.shown = #cur.text end
         cur.shown = math.min(cur.shown, #cur.text)
         capture(cur)
@@ -245,113 +253,64 @@ local function merge(tab, snap, live)
     typer:Show()
 end
 
--- Inbound: slots --------------------------------------------------------------------------------
+-- Watching the bridge -------------------------------------------------------------------------
 
-local function stopPolling(n)
+local function stopWatching(n)
     if n and n.tone == "error" then queueReport("stalled", n.text) end
-    poll = nil
-    if pollTicker then pollTicker:Cancel() end
-    pollTicker = nil
+    watch = nil
+    if watchTicker then watchTicker:Cancel() end
+    watchTicker = nil
     notice = n
     changed()
 end
 
-local function loadSlot(i)
-    WaiSlot = nil
-    LoadAddOn(("wai_slot%03d"):format(i))
-    local snap = WaiSlot
-    WaiSlot = nil
-    return snap
-end
-
-local function mergeSlot(slot)
-    if type(slot) ~= "table" or slot.who ~= who then return end
-    if slot.beat ~= lastBeat then lastBeat, lastBeatAt = slot.beat, GetTime() end
-    contactAt = GetTime()
-    updateAvailable = slot.update and slot.update.version
-    agent = slot.agent or agent
-    track = slot.track or track
-    ctxEpoch = slot.ctxEpoch or ctxEpoch
-    for tab, snap in pairs(slot.chats or {}) do merge(tab, snap, true) end
-    ns.modules.sync(slot.modules)
-    ns.video.sync(slot.video)
-    changed()
-end
-
--- Which slot to read `seconds` after a send. Must match slotOffset() in bridge/src/files.ts.
-local function slotOffset(seconds)
-    if seconds < 60 then return floor(seconds) end
-    if seconds < 300 then return 60 + floor((seconds - 60) / 2) end
-    return 180 + floor((seconds - 300) / 4)
-end
-
-local ping
+local ping, hello
 
 -- Keeps the live view honest: retries silently once, then says what's wrong.
 local function checkHealth()
-    if not poll then return end
+    if not watch then return end
     local t = GetTime()
-    if not waiting() then return stopPolling() end
-    if #WaiDB.outbox > 0 and t - poll.t0 > ACK_TIMEOUT then
-        if poll.retried then
-            return stopPolling({ tone = "error", text = "Couldn't reach the bridge. Is it running?", action = "Retry", run = core.sync })
+    if not waiting() then return stopWatching() end
+    if #WaiDB.outbox > 0 and t - watch.t0 > ACK_TIMEOUT then
+        if watch.retried then
+            return stopWatching({ tone = "error", text = "Couldn't reach the bridge. Is it running?", action = "Retry", run = core.sync })
         end
-        poll.retried = true
+        watch.retried, watch.t0 = true, t
         core.sync()
     elseif t - lastBeatAt > STALE_AFTER then
-        if poll.resynced then
-            return stopPolling({ tone = "error", text = "Lost touch with the bridge.", action = "Retry", run = core.sync })
+        if watch.resynced then
+            return stopWatching({ tone = "error", text = "Lost touch with the bridge.", action = "Retry", run = core.sync })
         end
-        poll.resynced = true
+        watch.resynced = true
         lastBeatAt = t
         ping()
     end
 end
 
-local function pollOnce()
-    if not poll then return end
-    if nextSlot > SLOT_COUNT then return stopPolling() end
-    local target = poll.k0 + slotOffset(GetTime() - poll.t0)
-    if target >= nextSlot then
-        local idx = math.min(SLOT_COUNT, target)
-        nextSlot = idx + 1
-        mergeSlot(loadSlot(idx))
-    end
-    checkHealth()
-end
-
-local function startPolling()
-    if nextSlot > SLOT_COUNT then return changed() end
-    local previous = poll
-    poll = { k0 = nextSlot, t0 = GetTime(), retried = previous and previous.retried, resynced = previous and previous.resynced }
+local function startWatching()
+    watch = { t0 = GetTime(), retried = watch and watch.retried, resynced = watch and watch.resynced }
     lastBeatAt = GetTime()
-    pollTicker = pollTicker or C_Timer.NewTicker(POLL_SECONDS, guard(pollOnce))
+    watchTicker = watchTicker or C_Timer.NewTicker(1, guard(checkHealth))
     changed()
 end
 
--- Outbound: screenshots -------------------------------------------------------------------------
+-- Inbound: what changed on the bridge, over the link ----------------------------------------------
 
-local function buildGrid()
-    local physH = select(2, GetPhysicalScreenSize())
-    local b = 3 * UIParent:GetHeight() / physH -- 3 physical pixels per block
-    grid = CreateFrame("Frame", nil, UIParent)
-    grid:SetFrameStrata("TOOLTIP")
-    grid:SetSize((GRID_COLS + 2 * GRID_MARGIN) * b, (GRID_ROWS + 2 * GRID_MARGIN) * b)
-    grid:SetPoint("TOPLEFT", 40, -40)
-    local bg = grid:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(1, 0, 1)
-    gridBlocks = {}
-    for r = 0, GRID_ROWS - 1 do
-        for c = 0, GRID_COLS - 1 do
-            local t = grid:CreateTexture(nil, "ARTWORK")
-            t:SetSize(b, b)
-            t:SetPoint("TOPLEFT", (GRID_MARGIN + c) * b, -(GRID_MARGIN + r) * b)
-            gridBlocks[#gridBlocks + 1] = t
-        end
-    end
-    grid:Hide()
+local function apply(msg)
+    if type(msg) ~= "table" then return end
+    lastBeatAt, contactAt = GetTime(), GetTime()
+    if msg.hello then return hello() end -- the bridge restarted and wants to know what we have
+    if msg.update ~= nil then updateAvailable = msg.update and msg.update.version or nil end
+    if msg.agent then agent = msg.agent end
+    if msg.track then track = msg.track end
+    if msg.ctxEpoch ~= nil then ctxEpoch = msg.ctxEpoch or nil end
+    for tab, snap in pairs(msg.chats or {}) do merge(tab, snap, true) end
+    if msg.modules ~= nil then ns.modules.sync(msg.modules) end
+    if msg.video ~= nil then ns.video.sync(msg.video) end
+    changed()
 end
+
+-- Outbound ----------------------------------------------------------------------------------------
 
 -- The player's telemetry choice and the client build (and an agent or update-track switch, on the
 -- ping that asks for it), plus queued reports if they opted in.
@@ -381,8 +340,7 @@ function core.ctxEpoch()
     return ctxEpoch
 end
 
--- Header: "WAI", version, seq(2), slot(2), kind, length(2); then
--- text \0 context \0 who \0 tab \0 flags \0 telemetry reports.
+-- kind, seq(2), then text \0 context \0 who \0 tab \0 flags \0 telemetry reports.
 local function encode(item)
     local tail = fixedTail(item)
     local payload = (item.text or "") .. "\0" .. (item.ctx or "")
@@ -393,74 +351,44 @@ local function encode(item)
         if #lines > 0 then reports = {} end
         tail = tail .. lines
     end
-    payload = payload .. tail
-    local seq, slot = item.seq or 0, nextSlot
-    local bytes = {
-        87, 65, 73, VERSION,
-        floor(seq / 256) % 256, seq % 256,
-        floor(slot / 256) % 256, slot % 256,
-        KINDS[item.kind] or KINDS.chat,
-        floor(#payload / 256), #payload % 256,
-    }
-    for i = 1, #payload do bytes[#bytes + 1] = payload:byte(i) end
-    return bytes
+    local seq = item.seq or 0
+    return string.char(KINDS[item.kind] or KINDS.chat, floor(seq / 256) % 256, seq % 256) .. payload .. tail
 end
 
-local function bit(bytes, k)
-    local byte = bytes[floor(k / 8) + 1] or 0
-    return floor(byte / 2 ^ (7 - k % 8)) % 2
+-- Sends now over the link; without it, chat messages wait in WaiDB.outbox for a reload.
+local function transmit(item)
+    if not ns.link.send(encode(item)) then return false end
+    startWatching()
+    return true
 end
 
-local function finishShot(ok)
-    shooting = nil
-    grid:Hide()
-    SetCVar("screenshotFormat", savedFormat)
-    if not ok then notice = { tone = "error", text = "Couldn't send that message.", action = "Retry", run = core.sync } end
-end
-
-local function shootNext()
-    if shooting or #shots == 0 then return end
-    if not grid then buildGrid() end
-    local token = {}
-    shooting = token
-    local bytes = table.remove(shots, 1)
-    for i, t in ipairs(gridBlocks) do
-        local k = (i - 1) * 3
-        t:SetColorTexture(bit(bytes, k), bit(bytes, k + 1), bit(bytes, k + 2))
-    end
-    grid:Show()
-    savedFormat = GetCVar("screenshotFormat")
-    SetCVar("screenshotFormat", "tga") -- lossless, so the bits survive
-    Screenshot()
-    -- If the client refuses the screenshot without an event, don't wait forever.
-    C_Timer.After(SHOT_TIMEOUT, function()
-        if shooting ~= token then return end
-        finishShot(false)
-        changed()
-    end)
-end
-
-local shotEvents = CreateFrame("Frame")
-shotEvents:RegisterEvent("SCREENSHOT_SUCCEEDED")
-shotEvents:RegisterEvent("SCREENSHOT_FAILED")
-shotEvents:SetScript("OnEvent", guard(function(_, event)
-    if not shooting then return end
-    finishShot(event == "SCREENSHOT_SUCCEEDED")
-    C_Timer.After(0, function() if ActionStatus then ActionStatus:Hide() end end) -- "Screen captured"
-    startPolling()
-    shootNext()
-end))
-
--- Asks the bridge to republish from our current slot.
+-- Asks the bridge to send what changed.
 ping = function()
-    shots[#shots + 1] = encode({ kind = "ping" })
-    shootNext()
+    transmit({ kind = "ping" })
+end
+
+-- Tells the bridge what this session already has (from Data.lua or earlier messages), so it sends
+-- only what's new: per tab, the latest messages as "tab id length done role".
+hello = function()
+    local lines = {}
+    for _, tab in ipairs(tabs().list) do
+        local c = chats[tab.id]
+        local count = 0
+        for i = #(c and c.messages or {}), 1, -1 do
+            local m = c.messages[i]
+            if m.role ~= "note" and m.id % 1 == 0 then
+                lines[#lines + 1] = ("%s %d %d %d %s"):format(tab.id, m.id, #m.text, m.done and 1 or 0, m.role)
+                count = count + 1
+                if count >= DIGEST_MESSAGES then break end
+            end
+        end
+    end
+    ns.link.send(encode({ kind = "hello", text = table.concat(lines, "\n") }))
 end
 
 -- Asks the bridge for a video directly (kind "video" or "clip"), without going through Claude.
 function core.requestVideo(kind, query)
-    shots[#shots + 1] = encode({ kind = "video", text = kind .. ":" .. query })
-    shootNext()
+    transmit({ kind = "video", text = kind .. ":" .. query })
 end
 
 -- Reports waiting to go with the next message (for "See what's sent").
@@ -476,11 +404,9 @@ end
 -- In-game /update: the bridge updates wai and reports progress as status lines in this chat.
 function core.requestUpdate()
     updateAvailable = nil
-    local c = chatFor(activeTab())
-    c.busy = true -- keep polling until the bridge reports back
-    shots[#shots + 1] = encode({ kind = "update" })
     notice = nil
-    shootNext()
+    -- Keep watching until the bridge reports back.
+    chatFor(activeTab()).busy = transmit({ kind = "update" })
     changed()
 end
 
@@ -490,12 +416,10 @@ end
 
 -- /settings choices the bridge owns go out on a ping; it confirms with a note in this chat.
 local function askBridge(fields)
-    local c = chatFor(activeTab())
-    c.busy = true -- keep polling until the bridge's note arrives
     fields.kind = "ping"
-    shots[#shots + 1] = encode(fields)
     notice = nil
-    shootNext()
+    -- Keep watching until the bridge's note arrives.
+    chatFor(activeTab()).busy = transmit(fields)
     changed()
 end
 
@@ -529,10 +453,9 @@ local function enqueue(item)
     item.who = who
     item.tab = activeTab()
     table.insert(WaiDB.outbox, item) -- also flushed on reload, as a fallback
-    shots[#shots + 1] = encode(item)
     notice = nil
-    if poll then poll.retried, poll.resynced = nil, nil end
-    shootNext()
+    if watch then watch.retried, watch.resynced = nil, nil end
+    transmit(item)
     changed()
 end
 
@@ -556,12 +479,13 @@ function core.reset()
     enqueue({ kind = "reset" })
 end
 
--- Resends anything unacknowledged, or pings so the bridge republishes from our current slot.
+-- Resends anything the bridge hasn't confirmed, or pings so it sends what changed. Whatever the
+-- link still holds is on its way already; copies would only queue behind it.
 function core.sync()
     notice = nil
-    for _, item in ipairs(WaiDB.outbox) do shots[#shots + 1] = encode(item) end
-    if #shots == 0 then shots[1] = encode({ kind = "ping" }) end
-    shootNext()
+    if ns.link.busy() then return changed() end
+    if #WaiDB.outbox == 0 then return ping() end
+    for _, item in ipairs(WaiDB.outbox) do transmit(item) end
     changed()
 end
 
@@ -642,7 +566,7 @@ function core.view()
         thinking = (#outbox > 0 or c.busy) and not streaming,
         activity = c.activity or (#outbox > 0 and "Sending") or nil,
         notice = notice,
-        full = nextSlot > SLOT_COUNT,
+        offline = offline,
         modulesNeedReload = ns.modules.needsReload(),
         update = updateAvailable,
         agent = core.agent(),
@@ -650,6 +574,21 @@ function core.view()
         consent = ns.settings.get("telemetry") == nil and #c.messages > 0,
         tabs = core.tabs(),
     }
+end
+
+-- The link needs the character's GUID, which a cold login can be slow to have.
+local function startLink(attempt)
+    local ok, why = ns.link.start({ message = guard(apply), restart = guard(function() hello() end) })
+    if ok then
+        offline = nil
+        return hello()
+    end
+    if why == "guid" and (attempt or 0) < 10 then
+        return C_Timer.After(1, function() startLink((attempt or 0) + 1) end)
+    end
+    offline = why == "helpers" and "Restart WoW once to finish updating wai. Until then, messages send when you reload."
+        or "wai can't reach the bridge live in this client. Messages send when you reload."
+    queueReport("link_unavailable", why)
 end
 
 local events = CreateFrame("Frame")
@@ -666,7 +605,6 @@ events:SetScript("OnEvent", guard(function()
 
     ns.ui.build()
     local data = WaiData or {}
-    lastBeat = data.beat
     updateAvailable = data.update and data.update.version
     agent = data.agent
     track = data.track
@@ -681,8 +619,9 @@ events:SetScript("OnEvent", guard(function()
     ns.way.restore()
     if WaiDB.reopen then ns.ui.show() end
     WaiDB.reopen = nil
-    -- A reload flushed any pending outbox to the bridge, which now publishes from slot 1.
-    if waiting() then startPolling() end
+    startLink()
+    -- A reload flushed any pending outbox to the bridge; watch for its reply.
+    if waiting() then startWatching() end
     changed()
 end))
 

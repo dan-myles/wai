@@ -46,13 +46,13 @@ tasks:
       - bun src/cli.ts run
 
   setup:
-    desc: Link this checkout's addon into WoW and create the slot addons
+    desc: Link this checkout's addon into WoW and create the helper addons
     dir: apps/cli
     cmds:
       - bun src/setup.ts
 
   status:
-    desc: Check everything wai needs (WoW, addon link, slots, Claude, bridge)
+    desc: Check everything wai needs (WoW, addon link, helper addons, Claude, bridge)
     dir: apps/cli
     cmds:
       - bun src/cli.ts status

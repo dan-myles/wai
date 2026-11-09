@@ -1,4 +1,4 @@
-// The game context from the addon (context.lua). Each screenshot holds about 3 KB, so slow-changing
+// The game context from the addon (context.lua). Each message holds about 3 KB, so slow-changing
 // fields (STICKY) only come when they change; the bridge keeps the latest per character and puts
 // them in every prompt. The rest arrive with each message. A bridge that lost its memory gets a new
 // epoch, which tells the addon to send everything again.

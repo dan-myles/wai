@@ -157,7 +157,7 @@ Everything else, just ask. Some things to try:
 
 ## How it works
 
-WoW addons can't touch the network or files. wai uses two things the client does allow: taking screenshots, and loading addons on demand.
+WoW addons can't touch the network or files. wai uses two things the client does allow: turning addons on and off (which the client saves to `AddOns.txt` the moment you ask), and loading addons on demand.
 
 ```mermaid
 flowchart LR
@@ -165,22 +165,23 @@ flowchart LR
         addon["wai addon"]
     end
     subgraph pc["Your computer"]
-        tga[("Screenshots/*.tga")]
+        txt[("WTF/…/AddOns.txt<br/>wai_up* and wai_dn* lines")]
         bridge["wai bridge"]
-        slots[("AddOns/wai_slotNNN")]
+        slots[("AddOns/wai_mod*, wai_vid*")]
     end
     claude["Claude Code or Codex<br/>(headless, streaming)"]
 
-    addon -- "paints a bit grid,<br/>Screenshot()" --> tga
-    tga -- "decode, delete" --> bridge
+    addon -- "EnableAddOn/DisableAddOn,<br/>SaveAddOns()" --> txt
+    txt -- "ResetAddOns()" --> addon
+    txt <--> bridge
     bridge <--> claude
-    bridge -- "writes the next<br/>snapshots" --> slots
-    slots -- "LoadAddOn() every second" --> addon
+    bridge -- "UI modules, video" --> slots
+    slots -- "LoadAddOn()" --> addon
 ```
 
-- **Out:** each message is painted as a 128×64 grid of coloured blocks in a magenta frame, 3 bits per block (one per colour channel). The addon takes a lossless TGA screenshot; the bridge decodes it and deletes the file.
-- **In:** 500 load-on-demand `wai_slotNNN` addons. Loading one reads its file from disk at that moment, so the bridge writes snapshots into the slots the addon will load next. A heartbeat and re-sync keep long replies flowing.
-- **Live UI and video** use the same trick with their own pools: 40 module slots for UI the agent writes, and 200 slots for 80×45 pixel video frames.
+- **The link:** 2,048 empty helper addons are two lanes of bits, 128 bytes each way. The addon writes a frame into its lane by switching helpers on and off and saving; the bridge reads it from the character's `AddOns.txt`, writes its own lane into the same file, and the addon reads that back with `ResetAddOns()`. Every frame carries a sequence number, an ack of the other lane and a CRC, so each side sends its next frame as soon as the last one is confirmed (about one frame per game frame while a message moves). Nothing shows on screen, and the link never runs out.
+- **Small messages:** the addon's messages are deflated when the client supports it, and the bridge only ever sends what changed: new messages, the new part of a streaming reply, and fields that moved. Opening the AddOns list pauses the link so your choices there are kept.
+- **Live UI and video** load through load-on-demand slots: 40 for UI the agent writes, and 200 for 80×45 pixel video frames.
 - **Fallback:** `WaiDB.outbox` flushes on reload and `Data.lua` keeps history. Sequence numbers make resends harmless.
 - **The agent:** every prompt carries [`apps/cli/SKILL.md`](apps/cli/SKILL.md), which teaches the agent the game, the reply markup (`[[item:…]]`, `[[setway:…]]`, `[[remember:…]]`…) and how to build UI.
 - **Wowhead:** the bridge also gives each run its own `wai mcp` server with `search` and `lookup` tools for Wowhead's Forever database (names to IDs, tooltips, and NPC and object coordinates for the waypoint arrow) and `curseforge`, which checks a CurseForge project for a Forever build. Full pages go through the agent's web fetch.
@@ -194,7 +195,7 @@ flowchart LR
 
 | Command | |
 |---|---|
-| `wai install [--wow <path>]` | link the addon, create the slots, start the bridge at login |
+| `wai install [--wow <path>]` | link the addon, create the helper addons, start the bridge at login |
 | `wai update` | update to the latest release |
 | `wai status` | check everything wai needs (alias `doctor`) |
 | `wai logs [-f]` | show or follow the bridge log |
